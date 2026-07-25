@@ -1,18 +1,19 @@
 // --- 1. KONFIGURASI SUPABASE CLOUD DATABASE ---
-// Masukkan kredensial Supabase Anda di sini agar bisa langsung di-deploy online secara real-time!
+// Jika belum diisi / masih placeholder, sistem otomatis pakai LocalStorage yang aman & tidak mereset.
 const SUPABASE_URL = 'https://xjkahrfgkbjvvwxspsux.supabase.co';
 const SUPABASE_ANON_KEY = 'YeyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhqa2FocmZna2JqdnZ3eHNwc3V4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5ODAyMDcsImV4cCI6MjEwMDU1NjIwN30.CMbZiIszCqlryp8G6h5sL6vH_JFX-Y-3wvyMSb_3SVU';
+';
 
 let supabaseClient = null;
 let useCloud = false;
 
 try {
-    if (window.supabase && SUPABASE_URL.includes('http')) {
+    if (window.supabase && SUPABASE_URL && !SUPABASE_URL.includes('YOUR_SUPABASE_PROJECT_ID')) {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         useCloud = true;
     }
 } catch (e) {
-    console.log("Menggunakan LocalStorage offline fallback.");
+    useCloud = false;
 }
 
 // --- 2. STATE DATA KELAS ---
@@ -33,7 +34,7 @@ const defaultExpenses = [
     { id: 2, desc: "Kebersihan & Sapu Baru", amount: 15000, date: "2026-06-02" }
 ];
 
-// --- 3. LOAD & SYNC DATA DATABASE ---
+// --- 3. LOAD & SYNC DATA DATABASE DENGAN AUTO SEEDING ---
 async function loadData() {
     if (useCloud) {
         try {
@@ -41,25 +42,35 @@ async function loadData() {
             let { data: expData, error: errE } = await supabaseClient.from('pengeluaran').select('*');
             let { data: auditData, error: errA } = await supabaseClient.from('audit_log').select('*');
 
-            if (!errS && siswaData && siswaData.length > 0) {
-                dataSiswa = siswaData.map(s => ({ id: s.id, nama: s.nama, payments: s.payments || [] }));
-            } else {
-                dataSiswa = defaultSiswa;
+            if (!errS && siswaData) {
+                if (siswaData.length > 0) {
+                    dataSiswa = siswaData.map(s => ({ id: s.id, nama: s.nama, payments: s.payments || [] }));
+                } else {
+                    dataSiswa = defaultSiswa;
+                    await saveDataSiswa(); // Auto seed ke cloud jika tabel kosong
+                }
             }
 
-            if (!errE && expData) dataPengeluaran = expData;
-            else dataPengeluaran = defaultExpenses;
+            if (!errE && expData) {
+                if (expData.length > 0) {
+                    dataPengeluaran = expData;
+                } else {
+                    dataPengeluaran = defaultExpenses;
+                    await saveDataExpense();
+                }
+            }
 
-            if (!errA && auditData) dataAudit = auditData;
-            else dataAudit = [];
-            
+            if (!errA && auditData) {
+                dataAudit = auditData;
+            }
             return;
         } catch(err) {
-            console.warn("Gagal sinkron cloud, beralih ke local storage.");
+            console.warn("Koneksi cloud gagal, beralih ke penyimpanan lokal.");
+            useCloud = false;
         }
     }
 
-    // Fallback LocalStorage
+    // Fallback LocalStorage (Menyimpan permanen di browser pengguna)
     dataSiswa = JSON.parse(localStorage.getItem('XIDKV1_Siswa')) || defaultSiswa;
     dataPengeluaran = JSON.parse(localStorage.getItem('XIDKV1_Expense')) || defaultExpenses;
     dataAudit = JSON.parse(localStorage.getItem('XIDKV1_Audit')) || [];
@@ -67,20 +78,23 @@ async function loadData() {
 
 async function saveDataSiswa() {
     localStorage.setItem('XIDKV1_Siswa', JSON.stringify(dataSiswa));
-    if (useCloud) {
-        // Upsert data siswa ke supabase
-        for(let s of dataSiswa) {
-            await supabaseClient.from('siswa').upsert({ id: s.id, nama: s.nama, payments: s.payments });
-        }
+    if (useCloud && supabaseClient) {
+        try {
+            for(let s of dataSiswa) {
+                await supabaseClient.from('siswa').upsert({ id: s.id, nama: s.nama, payments: s.payments });
+            }
+        } catch(e) { console.error("Gagal simpan cloud:", e); }
     }
 }
 
 async function saveDataExpense() {
     localStorage.setItem('XIDKV1_Expense', JSON.stringify(dataPengeluaran));
-    if (useCloud) {
-        for(let e of dataPengeluaran) {
-            await supabaseClient.from('pengeluaran').upsert({ id: e.id, desc: e.desc, amount: e.amount, date: e.date });
-        }
+    if (useCloud && supabaseClient) {
+        try {
+            for(let e of dataPengeluaran) {
+                await supabaseClient.from('pengeluaran').upsert({ id: e.id, desc: e.desc, amount: e.amount, date: e.date });
+            }
+        } catch(e) { console.error("Gagal simpan cloud:", e); }
     }
 }
 
@@ -88,8 +102,10 @@ async function logAudit(action, detail) {
     const logItem = { id: Date.now(), time: new Date().toLocaleString('id-ID'), action, detail };
     dataAudit.unshift(logItem);
     localStorage.setItem('XIDKV1_Audit', JSON.stringify(dataAudit));
-    if (useCloud) {
-        await supabaseClient.from('audit_log').insert([logItem]);
+    if (useCloud && supabaseClient) {
+        try {
+            await supabaseClient.from('audit_log').insert([logItem]);
+        } catch(e) { console.error("Gagal log audit cloud:", e); }
     }
 }
 
@@ -293,7 +309,6 @@ function renderPublicActivityFeed() {
     });
 }
 
-// Fitur Tombol Kirim Pengingat WhatsApp
 function kirimPengingatWA(namaSiswa, sisaTagihan) {
     const pesan = `Halo ${namaSiswa}, ini pengingat ramah dari pengurus Kas XI DKV 1. Tagihan kas bulan ini masih kurang ${formatRp(sisaTagihan)}. Mohon segera dicicil ya, terima kasih! ✨`;
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(pesan)}`;
@@ -370,7 +385,7 @@ function renderMatrixRecap() {
 
         if (siswa.payments) {
             siswa.payments.forEach(p => {
-                const [y, m] = p.date.split('-');
+                const [y, m, d] = p.date.split('-');
                 const monthIndex = parseInt(m, 10) - 1;
                 if (monthIndex >= 0 && monthIndex < 12) {
                     monthlyTotals[monthIndex] += Number(p.amount);
@@ -634,7 +649,7 @@ async function simpanDataSiswa() {
     closeModal('form-modal');
     renderTableAdmin();
     renderTablePublic();
-    showToast("Data siswa berhasil disimpan ke database!", "success");
+    showToast("Data siswa berhasil disimpan!", "success");
 }
 
 async function hapusSiswa(id) {
@@ -797,4 +812,4 @@ function exportMatrixExcel() {
     XLSX.utils.book_append_sheet(wb, ws, "Matriks Tahunan 12 Bulan");
     XLSX.writeFile(wb, "Matriks_Rekap_Tahunan_XI_DKV1.xlsx");
     showToast("Matriks Excel berhasil diunduh!", "success");
-        }
+}

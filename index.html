@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Uang Kas XI DKV1 - Cloud Deployment Ready</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- CSS -->
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Lucide Icons (Fixed CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <!-- SheetJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Supabase Client SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+    <!-- Animasi Loading -->
+    <div id="loader">
+        <div class="spinner"></div>
+        <h2 style="margin-top: 20px; font-weight: 900; letter-spacing: 1px;">XI DKV 1</h2>
+        <p>Menghubungkan ke Cloud Database...</p>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast-container"></div>
+
+    <!-- HEADER UTAMA -->
+    <header class="main-header animate-fade">
+        <div class="header-left">
+            <div class="icon-wrapper bg-blue"><i data-lucide="cloud"></i></div>
+            <div>
+                <h1>KasKelasku <span class="badge-pro">CLOUD PRO</span></h1>
+                <p>Dashboard Keuangan & Database Real-time Kelas XI DKV 1</p>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="time-widget">
+                <i data-lucide="clock"></i>
+                <div>
+                    <div id="current-time">00:00:00 WIB</div>
+                    <div id="current-date">Senin, 1 Jan 2026</div>
+                </div>
+            </div>
+            <button class="btn btn-outline" id="btn-login-trigger" onclick="openLogin()">
+                <i data-lucide="shield-check"></i> Admin Panel
+            </button>
+            <button class="btn btn-danger" id="btn-logout-trigger" style="display: none;" onclick="logoutAdmin()">
+                <i data-lucide="log-out"></i> Keluar
+            </button>
+        </div>
+    </header>
+
+    <div class="container" id="main-content">
+        
+        <!-- DASHBOARD GRID: Info Cards + Calendar -->
+        <div class="dashboard-grid animate-fade" style="animation-delay: 0.1s;">
+            <div class="info-section">
+                <div class="info-cards-row">
+                    <div class="card info-card">
+                        <div class="card-icon bg-soft-blue"><i data-lucide="target"></i></div>
+                        <div>
+                            <h3>Target Bulanan</h3>
+                            <h2>Rp 3.000</h2>
+                        </div>
+                    </div>
+                    <div class="card info-card">
+                        <div class="card-icon bg-soft-green"><i data-lucide="trending-up"></i></div>
+                        <div>
+                            <h3>Total Kas Masuk</h3>
+                            <h2 id="total-terkumpul">Rp 0</h2>
+                        </div>
+                    </div>
+                    <div class="card info-card">
+                        <div class="card-icon bg-soft-red"><i data-lucide="trending-down"></i></div>
+                        <div>
+                            <h3>Total Kas Keluar</h3>
+                            <h2 id="total-pengeluaran-publik">Rp 0</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="card info-card card-highlight">
+                    <div class="card-icon bg-white text-blue"><i data-lucide="vault"></i></div>
+                    <div>
+                        <h3 class="text-white">Saldo Kas Bersih (Cloud Sync)</h3>
+                        <h2 class="text-white" id="saldo-bersih">Rp 0</h2>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kalender Interaktif -->
+            <div class="card calendar-section">
+                <div class="calendar-header">
+                    <button onclick="prevMonth()"><i data-lucide="chevron-left"></i></button>
+                    <h3 id="month-year">Januari 2026</h3>
+                    <button onclick="nextMonth()"><i data-lucide="chevron-right"></i></button>
+                </div>
+                <div class="calendar-grid days-header">
+                    <div>Min</div><div>Sen</div><div>Sel</div><div>Rab</div><div>Kam</div><div>Jum</div><div>Sab</div>
+                </div>
+                <div class="calendar-grid" id="calendar-body"></div>
+            </div>
+        </div>
+
+        <!-- WIDGETS ROW (LEADERBOARD & ACTIVITY FEED) -->
+        <div class="widgets-row animate-fade" style="animation-delay: 0.12s;">
+            <!-- Sistem Ranking / Leaderboard -->
+            <div class="card widget-card">
+                <div class="section-header" style="margin-bottom: 15px;">
+                    <div class="title-with-icon" style="font-size: 1rem;">
+                        <i data-lucide="trophy" style="color: #f59e0b;"></i>
+                        <h2>Top Kontributor Kas</h2>
+                    </div>
+                    <p class="subtitle">Siswa dengan total setoran tertinggi.</p>
+                </div>
+                <div id="leaderboard-list" class="leaderboard-list"></div>
+            </div>
+
+            <!-- Feed Transparansi Aktivitas -->
+            <div class="card widget-card">
+                <div class="section-header" style="margin-bottom: 15px;">
+                    <div class="title-with-icon" style="font-size: 1rem;">
+                        <i data-lucide="activity" style="color: var(--primary-dark);"></i>
+                        <h2>Aktivitas & Pengeluaran Terbaru</h2>
+                    </div>
+                    <p class="subtitle">Catatan keluar masuk kas secara real-time.</p>
+                </div>
+                <div id="public-activity-feed" class="activity-feed"></div>
+            </div>
+        </div>
+
+        <!-- NAVIGASI UTAMA -->
+        <div class="main-nav-tabs animate-fade" style="animation-delay: 0.15s;">
+            <button class="main-tab-btn active" onclick="switchMainView('tabel')"><i data-lucide="users"></i> Rekapitulasi Siswa</button>
+            <button class="main-tab-btn" onclick="switchMainView('matrix')"><i data-lucide="calendar-range"></i> Matriks Rekap Full (Bulan 1 - 12)</button>
+        </div>
+
+        <!-- VIEW 1: TABEL SISWA UTAMA -->
+        <div class="card table-container animate-fade" style="animation-delay: 0.2s;" id="view-tabel">
+            <div class="section-header flex-between">
+                <div>
+                    <div class="title-with-icon">
+                        <i data-lucide="list-checks"></i>
+                        <h2>Daftar Status Siswa</h2>
+                    </div>
+                    <p class="subtitle">Klik nama siswa untuk membuka profil lengkap & tombol pengingat WA.</p>
+                </div>
+                <div class="table-controls">
+                    <div class="search-box">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="search-input" placeholder="Cari nama siswa..." oninput="filterData()">
+                    </div>
+                    <div class="filter-pills">
+                        <button class="pill active" onclick="setFilter('all', this)">Semua</button>
+                        <button class="pill" onclick="setFilter('lunas', this)">Lunas</button>
+                        <button class="pill" onclick="setFilter('belum', this)">Belum</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="table-responsive">
+                <table id="tabel-kas-publik">
+                    <thead>
+                        <tr>
+                            <th>Ranking</th>
+                            <th>Profil Siswa</th>
+                            <th>Total Setoran Bulan Ini</th>
+                            <th>Status Target (Rp 3.000)</th>
+                            <th>Aksi & Pengingat</th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-siswa-publik"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- VIEW 2: MATRIKS REKAP 12 BULAN -->
+        <div class="card table-container animate-fade" id="view-matrix" style="display: none;">
+            <div class="section-header flex-between">
+                <div>
+                    <div class="title-with-icon">
+                        <i data-lucide="table"></i>
+                        <h2>Matriks Rekapitulasi Tahunan (Bulan 1 s.d. 12)</h2>
+                    </div>
+                    <p class="subtitle">Tinjauan komprehensif seluruh catatan setoran kas kelas sepanjang tahun berjalan.</p>
+                </div>
+                <button class="btn btn-outline" onclick="exportMatrixExcel()"><i data-lucide="file-spreadsheet"></i> Export Matriks</button>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="matrix-table" id="tabel-matrix-rekap">
+                    <thead>
+                        <tr>
+                            <th>No</th>
+                            <th>Nama Siswa</th>
+                            <th>Jan</th>
+                            <th>Feb</th>
+                            <th>Mar</th>
+                            <th>Apr</th>
+                            <th>Mei</th>
+                            <th>Jun</th>
+                            <th>Jul</th>
+                            <th>Agu</th>
+                            <th>Sep</th>
+                            <th>Okt</th>
+                            <th>Nov</th>
+                            <th>Des</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-matrix-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ADMIN PANEL AREA -->
+        <div class="card table-container admin-panel" id="admin-panel" style="display: none;">
+            <div class="section-header flex-between">
+                <div class="title-with-icon">
+                    <i data-lucide="shield-alert" style="color: #ff9800;"></i>
+                    <h2>Dashboard Manajemen Admin Cloud</h2>
+                </div>
+                <div class="admin-actions">
+                    <button class="btn btn-success" onclick="openFormModal()"><i data-lucide="user-plus"></i> Tambah Siswa</button>
+                    <button class="btn btn-primary" onclick="openPaymentModal()"><i data-lucide="plus-circle"></i> Input Cicilan</button>
+                    <button class="btn btn-danger" onclick="openExpenseModal()"><i data-lucide="minus-circle"></i> Kas Keluar</button>
+                    <button class="btn btn-excel" onclick="exportToExcel()"><i data-lucide="download"></i> Export Excel</button>
+                </div>
+            </div>
+            
+            <div class="admin-tabs">
+                <button class="tab-btn active" onclick="switchAdminTab('siswa')"><i data-lucide="users"></i> Data Siswa</button>
+                <button class="tab-btn" onclick="switchAdminTab('pengeluaran')"><i data-lucide="receipt"></i> Kas Keluar</button>
+                <button class="tab-btn" onclick="switchAdminTab('audit')"><i data-lucide="history"></i> Log Aktivitas Admin</button>
+                <button class="tab-btn" onclick="switchAdminTab('analisis')"><i data-lucide="pie-chart"></i> Analisis</button>
+            </div>
+
+            <div id="tab-siswa" class="admin-tab-content active">
+                <div class="table-responsive" style="margin-top: 15px;">
+                    <table id="tabel-kas-admin">
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Nama Siswa</th>
+                                <th>Frekuensi Cicilan</th>
+                                <th>Total Kas Masuk</th>
+                                <th>Manajemen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="data-siswa-admin"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-pengeluaran" class="admin-tab-content" style="display: none;">
+                <div class="table-responsive" style="margin-top: 15px;">
+                    <table id="tabel-pengeluaran">
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Tanggal</th>
+                                <th>Keterangan</th>
+                                <th>Nominal</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="data-pengeluaran"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-audit" class="admin-tab-content" style="display: none;">
+                <div class="table-responsive" style="margin-top: 15px;">
+                    <table id="tabel-audit">
+                        <thead>
+                            <tr>
+                                <th>Waktu</th>
+                                <th>Aksi Admin</th>
+                                <th>Keterangan Detail</th>
+                            </tr>
+                        </thead>
+                        <tbody id="data-audit"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-analisis" class="admin-tab-content" style="display: none;">
+                <hr class="divider">
+                <div class="section-header text-center">
+                    <h2><i data-lucide="pie-chart"></i> Rasio Pelunasan Target Kas Kelas</h2>
+                </div>
+                <div class="chart-container">
+                    <canvas id="analisisChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MODALS -->
+    <!-- Modal Login -->
+    <div id="login-modal" class="modal">
+        <div class="modal-box">
+            <button class="close-btn" onclick="closeModal('login-modal')"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <div class="icon-wrapper bg-soft-blue mx-auto"><i data-lucide="lock"></i></div>
+                <h2>Otorisasi Admin</h2>
+                <p>Masukkan kredensial pengurus kelas.</p>
+            </div>
+            <div class="input-group">
+                <label>Username</label>
+                <div class="input-wrapper">
+                    <i data-lucide="user"></i>
+                    <input type="text" id="username" placeholder="syallofficial.id">
+                </div>
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                <div class="input-wrapper">
+                    <i data-lucide="key"></i>
+                    <input type="password" id="password" placeholder="••••••••">
+                </div>
+            </div>
+            <button class="btn btn-primary w-100" onclick="prosesLogin()"><i data-lucide="log-in"></i> Masuk Sistem</button>
+        </div>
+    </div>
+
+    <!-- Modal Profil Siswa -->
+    <div id="student-modal" class="modal">
+        <div class="modal-box profile-box">
+            <button class="close-btn" onclick="closeModal('student-modal')"><i data-lucide="x"></i></button>
+            
+            <div class="profile-header-card">
+                <div class="profile-avatar-container">
+                    <img id="profil-avatar" src="" alt="Avatar" class="avatar-large">
+                    <div id="profil-badge-level" class="level-badge"><i data-lucide="award"></i> Elite</div>
+                </div>
+                <h2 id="profil-nama">Nama Siswa</h2>
+                <p class="subtitle" style="font-size: 0.8rem; margin-top:2px;">Siswa Kelas XI DKV 1</p>
+                <div id="profil-status-badge" style="margin-top: 10px;"></div>
+            </div>
+
+            <div class="profile-stats-grid">
+                <div class="stat-item bg-soft-blue">
+                    <p>Total Disetor</p>
+                    <h3 id="profil-total" class="text-blue">Rp 0</h3>
+                </div>
+                <div class="stat-item bg-soft-red">
+                    <p>Sisa Target (Rp 3rb)</p>
+                    <h3 id="profil-sisa" class="text-red">Rp 0</h3>
+                </div>
+                <div class="stat-item bg-soft-purple">
+                    <p>Frekuensi Bayar</p>
+                    <h3 id="profil-freq" class="text-purple">0x</h3>
+                </div>
+                <div class="stat-item bg-soft-green">
+                    <p>Rata-rata Cicilan</p>
+                    <h3 id="profil-avg" class="text-green">Rp 0</h3>
+                </div>
+            </div>
+
+            <div class="history-section">
+                <h3><i data-lucide="history"></i> Riwayat Cicilan Setoran</h3>
+                <ul class="history-list" id="history-list"></ul>
+            </div>
+            
+            <div class="chart-container" style="margin-top: 15px;">
+                <canvas id="studentBarChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Form Tambah/Edit Siswa -->
+    <div id="form-modal" class="modal">
+        <div class="modal-box form-box">
+            <button class="close-btn" onclick="closeModal('form-modal')"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <div class="icon-wrapper bg-soft-blue mx-auto"><i data-lucide="database"></i></div>
+                <h2 id="form-title">Tambah Siswa Baru</h2>
+                <p>Daftarkan data siswa ke cloud database.</p>
+            </div>
+            <input type="hidden" id="form-id">
+            <div class="input-group">
+                <label>Nama Lengkap Siswa</label>
+                <div class="input-wrapper">
+                    <i data-lucide="user"></i>
+                    <input type="text" id="form-nama" placeholder="Masukkan nama lengkap">
+                </div>
+            </div>
+            <button class="btn btn-primary w-100" onclick="simpanDataSiswa()"><i data-lucide="save"></i> Simpan Data</button>
+        </div>
+    </div>
+
+    <!-- Modal Input Cicilan Kas Masuk -->
+    <div id="payment-modal" class="modal">
+        <div class="modal-box">
+            <button class="close-btn" onclick="closeModal('payment-modal')"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <div class="icon-wrapper bg-soft-green mx-auto"><i data-lucide="plus-circle"></i></div>
+                <h2>Input Cicilan Kas</h2>
+                <p>Catat setoran bebas nominal harian/mingguan.</p>
+            </div>
+            <div class="input-group">
+                <label>Pilih Siswa</label>
+                <select id="pay-siswa-id" class="custom-select"></select>
+            </div>
+            <div class="input-group">
+                <label>Nominal Pembayaran (Rp)</label>
+                <div class="input-wrapper">
+                    <i data-lucide="coins"></i>
+                    <input type="number" id="pay-amount" placeholder="Contoh: 2000" min="500">
+                </div>
+            </div>
+            <div class="input-group">
+                <label>Tanggal Setoran</label>
+                <div class="input-wrapper">
+                    <i data-lucide="calendar"></i>
+                    <input type="date" id="pay-date">
+                </div>
+            </div>
+            <button class="btn btn-success w-100" onclick="prosesTambahCicilan()"><i data-lucide="check"></i> Catat Pembayaran</button>
+        </div>
+    </div>
+
+    <!-- Modal Input Kas Keluar -->
+    <div id="expense-modal" class="modal">
+        <div class="modal-box">
+            <button class="close-btn" onclick="closeModal('expense-modal')"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <div class="icon-wrapper bg-soft-red mx-auto"><i data-lucide="minus-circle"></i></div>
+                <h2>Catat Kas Keluar</h2>
+                <p>Pengeluaran uang kas untuk kebutuhan kelas.</p>
+            </div>
+            <div class="input-group">
+                <label>Keterangan Pengeluaran</label>
+                <div class="input-wrapper">
+                    <i data-lucide="file-text"></i>
+                    <input type="text" id="exp-desc" placeholder="Contoh: Beli spidol whiteboard">
+                </div>
+            </div>
+            <div class="input-group">
+                <label>Nominal (Rp)</label>
+                <div class="input-wrapper">
+                    <i data-lucide="coins"></i>
+                    <input type="number" id="exp-amount" placeholder="Contoh: 15000" min="1000">
+                </div>
+            </div>
+            <div class="input-group">
+                <label>Tanggal</label>
+                <div class="input-wrapper">
+                    <i data-lucide="calendar"></i>
+                    <input type="date" id="exp-date">
+                </div>
+            </div>
+            <button class="btn btn-danger w-100" onclick="prosesTambahPengeluaran()"><i data-lucide="check"></i> Simpan Pengeluaran</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+                  </html>

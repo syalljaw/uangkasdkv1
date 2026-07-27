@@ -1,8 +1,8 @@
 // =======================================================
-// KASKELASKU ULTRA PRO MAX - SCRIPT (NO LOADER)
+// KASKELASKU ULTRA PRO MAX - SCRIPT (FULL DATABASE SYNC)
 // =======================================================
 
-const SUPABASE_URL = 'https://xjkahrfgkbjvvwxspsux.supabase.co';
+const SUPABASE_URL =  'https://xjkahrfgkbjvvwxspsux.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhqa2FocmZna2JqdnZ3eHNwc3V4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5ODAyMDcsImV4cCI6MjEwMDU1NjIwN30.CMbZiIszCqlryp8G6h5sL6vH_JFX-Y-3wvyMSb_3SVU';
 let supabaseClient = null;
 let useCloud = false;
@@ -60,7 +60,11 @@ async function loadData() {
 async function saveData(key, data, table) {
     localStorage.setItem(key, JSON.stringify(data));
     if (useCloud && supabaseClient) {
-        try { for(let item of data) await supabaseClient.from(table).upsert(item); } catch(e) {}
+        try { 
+            for(let item of data) {
+                await supabaseClient.from(table).upsert(item); 
+            }
+        } catch(e) {}
     }
 }
 
@@ -335,6 +339,34 @@ function renderDashboard() {
         });
         if (lb.innerHTML === '') lb.innerHTML = `<li style="text-align:center; padding: 20px; color:var(--text-muted);">Belum ada data kontributor.</li>`;
     }
+
+    renderPublicExpenses();
+}
+
+function renderPublicExpenses() {
+    const tbody = document.getElementById('public-expense-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    
+    if (!dataPengeluaran || dataPengeluaran.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="color:var(--text-muted); padding:30px;">Belum ada pengeluaran kas.</td></tr>`;
+        return;
+    }
+
+    [...dataPengeluaran].sort((a,b) => new Date(b.date || b.tanggal) - new Date(a.date || a.tanggal)).forEach(e => {
+        let bkt = e.bukti ? `<a href="${e.bukti}" target="_blank" class="btn btn-outline btn-sm"><i data-lucide="image"></i> Lihat Bukti</a>` : '<span style="color:var(--text-muted);">Tidak ada bukti</span>';
+        tbody.innerHTML += `
+            <tr>
+                <td>${e.date || e.tanggal || ''}</td>
+                <td><span class="badge" style="background:var(--secondary); color:var(--primary-dark);">${e.kategori||'Lainnya'}</span></td>
+                <td style="text-align:left; font-weight:700;">${e.desc || ''}</td>
+                <td>${e.sumber==='digital'?'Digital':'Tunai'}</td>
+                <td class="money-blur" style="color:var(--danger); font-weight:900;">${formatRp(e.amount || 0)}</td>
+                <td>${bkt}</td>
+            </tr>
+        `;
+    });
+    lucide.createIcons();
 }
 
 let currentFilter = 'all';
@@ -593,6 +625,9 @@ async function hapusSiswa(id) {
     if(confirm('Hapus siswa ini?')) { 
         dataSiswa = dataSiswa.filter(s=>s.id !== id); 
         await saveData('XIDKV1_Siswa', dataSiswa, 'siswa'); 
+        if (useCloud && supabaseClient) {
+            try { await supabaseClient.from('siswa').delete().eq('id', id); } catch(e) {}
+        }
         renderTableAdmin(); 
         renderTablePublic(); 
         showToast('Dihapus.'); 
@@ -719,6 +754,9 @@ async function hapusEx(id) {
     if(confirm('Hapus?')) { 
         dataPengeluaran = dataPengeluaran.filter(e=>e.id !== id); 
         await saveData('XIDKV1_Exp', dataPengeluaran, 'pengeluaran'); 
+        if (useCloud && supabaseClient) {
+            try { await supabaseClient.from('pengeluaran').delete().eq('id', id); } catch(e) {}
+        }
         renderTableExpense(); 
         renderDashboard(); 
         showToast('Dihapus'); 

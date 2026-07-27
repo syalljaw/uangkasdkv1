@@ -1,169 +1,332 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Uang Kas XI DKV1 - Clean Admin Edition</title>
+    <title>Kas Kelas XI DKV 1 Ultra Pro Max</title>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-    
-    <!-- Scripts CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS (XLSX) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Supabase Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- CSS Terpisah -->
+    <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body id="main-content" style="display:none;">
 
-    <div id="toast-container"></div>
-
-    <!-- HEADER UTAMA -->
-    <header class="main-header animate-fade">
-        <div class="header-left">
-            <div class="icon-wrapper bg-blue"><i data-lucide="wallet-cards"></i></div>
-            <div>
-                <h1>KasKelasku <span class="badge-pro">ULTRA PRO</span></h1>
-                <p>Dashboard Keuangan & Transparansi Kelas XI DKV 1</p>
+    <!-- Navbar -->
+    <header>
+        <div class="nav-content">
+            <div class="brand">
+                <i data-lucide="wallet" style="width:28px;height:28px;"></i>
+                <span>Kas XI DKV 1 Ultra</span>
             </div>
-        </div>
-        <div class="header-right">
-            <!-- Jam Real-time (Fixed & Stable) -->
-            <div class="time-widget">
-                <i data-lucide="clock"></i>
-                <div>
-                    <div id="current-time">00:00:00 WIB</div>
-                    <div id="current-date">Memuat tanggal...</div>
-                </div>
+            <div class="nav-actions">
+                <button class="btn btn-outline" onclick="openQrisModal()"><i data-lucide="qr-code"></i> Bayar QRIS</button>
+                <button class="btn btn-outline btn-icon-only" onclick="togglePrivacy()" id="privacy-btn" title="Toggle Privasi"><i data-lucide="eye-off" id="privacy-icon"></i></button>
+                <button class="btn btn-outline btn-icon-only" onclick="toggleTheme()" title="Ganti Tema"><i data-lucide="moon" id="theme-icon"></i></button>
+                <button class="btn btn-primary" onclick="openLogin()" id="btn-login-trigger"><i data-lucide="lock"></i> Login</button>
+                <button class="btn btn-danger" onclick="logoutAdmin()" id="btn-logout-trigger" style="display:none;"><i data-lucide="log-out"></i> Logout</button>
             </div>
-            <button class="btn btn-outline btn-icon-only" onclick="togglePrivacy()" title="Mode Privasi (Sensor Uang)">
-                <i data-lucide="eye-off" id="privacy-icon"></i>
-            </button>
-            <button class="btn btn-outline btn-icon-only" onclick="toggleTheme()" title="Ubah Tema Gelap/Terang">
-                <i data-lucide="moon" id="theme-icon"></i>
-            </button>
-            <button class="btn btn-outline" id="btn-login-trigger" onclick="openLogin()">
-                <i data-lucide="shield-check"></i> Admin Panel
-            </button>
-            <button class="btn btn-danger" id="btn-logout-trigger" style="display: none;" onclick="logoutAdmin()">
-                <i data-lucide="log-out"></i> Keluar
-            </button>
         </div>
     </header>
 
-    <div class="container" id="main-content" style="display: block;">
+    <div class="container">
         
-        <!-- PAPAN PENGUMUMAN -->
-        <div class="card announcement-card animate-fade">
-            <div class="announcement-icon bg-soft-blue"><i data-lucide="megaphone"></i></div>
-            <div class="announcement-content">
-                <h3>Papan Pengumuman Kelas</h3>
-                <p id="announcement-text">Memuat pengumuman...</p>
+        <!-- Announcement Bar -->
+        <div class="announcement-bar">
+            <i data-lucide="megaphone" style="width:24px;height:24px;flex-shrink:0;"></i>
+            <div id="announcement-text" style="flex-grow:1; font-size:0.95rem;">Memuat pengumuman kelas...</div>
+        </div>
+
+        <!-- Filter & Header Info -->
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; margin-bottom:20px;">
+            <div>
+                <h1 style="font-size:1.8rem; font-weight:900;">Dashboard Keuangan</h1>
+                <p style="color:var(--text-muted); font-size:0.9rem;" id="current-date">Memuat tanggal...</p>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <select id="global-month-filter" class="form-control" onchange="updateGlobalFilter()" style="width:auto; font-weight:700;"></select>
+                <button class="btn btn-outline" onclick="openSplitterModal()"><i data-lucide="users"></i> Patungan</button>
+                <button class="btn btn-outline" onclick="printReport()"><i data-lucide="printer"></i> Cetak Laporan</button>
             </div>
         </div>
 
-        <!-- FILTER BULAN & ROULETTE UNDIAN -->
-        <div class="animate-fade flex-between filter-bar" style="margin-bottom: 25px;">
-            <div style="display:flex; align-items:center; gap:10px;">
-                <i data-lucide="calendar-search" style="color: var(--primary-dark);"></i>
-                <span style="font-weight: 700; font-size: 0.95rem;">Filter Bulan Dasbor:</span>
-                <select id="global-month-filter" class="custom-select" style="width: auto; padding: 8px 16px; font-weight: 800;" onchange="updateGlobalFilter()"></select>
+        <!-- Metric Cards -->
+        <div class="grid-4">
+            <div class="card">
+                <div class="card-title"><span>Terkumpul Bulan Ini</span> <i data-lucide="trending-up" style="color:var(--success);"></i></div>
+                <div class="card-value money-blur" id="total-terkumpul" style="color:var(--success);">Rp 0</div>
             </div>
-            <button class="btn btn-success" onclick="undianLunas()"><i data-lucide="gift"></i> Undian Reward Lunas</button>
+            <div class="card">
+                <div class="card-title"><span>Pengeluaran Bulan Ini</span> <i data-lucide="trending-down" style="color:var(--danger);"></i></div>
+                <div class="card-value money-blur" id="total-pengeluaran-publik" style="color:var(--danger);">Rp 0</div>
+            </div>
+            <div class="card">
+                <div class="card-title"><span>Pemasukan Lain</span> <i data-lucide="plus-circle" style="color:var(--primary);"></i></div>
+                <div class="card-value money-blur" id="total-lain" style="color:var(--primary);">Rp 0</div>
+            </div>
+            <div class="card">
+                <div class="card-title"><span>Saldo Bersih Total</span> <i data-lucide="shield-check" style="color:var(--purple);"></i></div>
+                <div class="card-value money-blur" id="saldo-bersih" style="color:var(--purple);">Rp 0</div>
+            </div>
         </div>
 
-        <!-- DASHBOARD GRID KEUANGAN & KALENDER INTERAKTIF -->
-        <div class="dashboard-grid animate-fade">
-            <div class="info-section">
-                <div class="info-cards-row">
-                    <div class="card info-card">
-                        <div class="card-icon bg-soft-green"><i data-lucide="trending-up"></i></div>
-                        <div>
-                            <h3>Total Kas Masuk</h3>
-                            <h2 class="money-blur" id="total-terkumpul">Rp 0</h2>
-                        </div>
-                    </div>
-                    <div class="card info-card">
-                        <div class="card-icon bg-soft-red"><i data-lucide="trending-down"></i></div>
-                        <div>
-                            <h3>Total Kas Keluar</h3>
-                            <h2 class="money-blur" id="total-pengeluaran-publik">Rp 0</h2>
-                        </div>
-                    </div>
-                    <div class="card info-card">
-                        <div class="card-icon bg-soft-purple"><i data-lucide="coins"></i></div>
-                        <div>
-                            <h3>Denda & Pemasukan Lain</h3>
-                            <h2 class="money-blur" id="total-lain">Rp 0</h2>
-                        </div>
-                    </div>
+        <!-- Secondary Financial Cards -->
+        <div class="grid-4" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom:25px;">
+            <div class="card" style="padding:15px;">
+                <div class="card-title"><span>Kas Fisik (Tunai)</span></div>
+                <div class="card-value money-blur" id="saldo-fisik" style="font-size:1.2rem;">Rp 0</div>
+            </div>
+            <div class="card" style="padding:15px;">
+                <div class="card-title"><span>Kas Digital (QRIS/Bank)</span></div>
+                <div class="card-value money-blur" id="saldo-digital" style="font-size:1.2rem;">Rp 0</div>
+            </div>
+            <div class="card" style="padding:15px; grid-column: span 2;">
+                <div class="card-title"><span id="health-month-label">Progress Bulan Ini</span> <span id="health-percentage" style="color:var(--primary);">0%</span></div>
+                <div style="background:var(--border-color); border-radius:10px; height:10px; width:100%; margin-top:8px; overflow:hidden;">
+                    <div id="health-progress-fill" style="background:var(--success); height:100%; width:0%; transition: width 0.5s;"></div>
                 </div>
-                
-                <div class="info-cards-row" style="margin-top:-5px;">
-                    <div class="card info-card" style="border-left: 4px solid #f59e0b;">
-                        <div>
-                            <h3>Saldo Tunai (Fisik)</h3>
-                            <h2 class="money-blur text-dark" id="saldo-fisik">Rp 0</h2>
-                        </div>
+                <div id="health-message" style="font-size:0.75rem; color:var(--text-muted); margin-top:6px; font-weight:600;">Memuat status kesehatan kas...</div>
+            </div>
+        </div>
+
+        <!-- Target Proyek Widget -->
+        <div class="card" style="margin-bottom:25px; background: linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(2, 132, 199, 0.05)); border: 1px dashed var(--purple);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <div>
+                    <h3 id="goal-title" style="font-weight:900; font-size:1.1rem; color:var(--purple);">Target Proyek: Memuat...</h3>
+                    <p style="font-size:0.8rem; color:var(--text-muted);">Alokasi tabungan kas kelas untuk kepentingan bersama.</p>
+                </div>
+                <div style="text-align:right;">
+                    <span id="goal-current" class="money-blur" style="font-weight:900; font-size:1.2rem; color:var(--text-main);">Rp 0</span> / 
+                    <span id="goal-target" class="money-blur" style="font-weight:700; color:var(--text-muted);">Rp 0</span>
+                </div>
+            </div>
+            <div style="background:var(--border-color); border-radius:10px; height:12px; width:100%; overflow:hidden;">
+                <div id="goal-progress-fill" style="background:var(--purple); height:100%; width:0%; transition: width 0.5s;"></div>
+            </div>
+        </div>
+
+        <!-- Admin Control Panel (Hidden by Default) -->
+        <div id="admin-panel" class="card" style="margin-bottom:25px; display:none; border-color:var(--primary);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--border-color); padding-bottom:15px;">
+                <h3 style="font-weight:900; color:var(--primary); display:flex; align-items:center; gap:8px;"><i data-lucide="shield-alert"></i> Panel Kontrol Bendahara</h3>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button class="btn btn-primary" onclick="openPaymentModal()"><i data-lucide="plus-circle"></i> Catat Setoran</button>
+                    <button class="btn btn-outline" onclick="openExpenseModal()"><i data-lucide="minus-circle"></i> Catat Pengeluaran</button>
+                    <button class="btn btn-outline" onclick="openPemasukanLainModal()"><i data-lucide="dollar-sign"></i> Pemasukan Lain</button>
+                    <button class="btn btn-success" onclick="openFormModal()"><i data-lucide="user-plus"></i> Tambah Siswa</button>
+                    <button class="btn btn-outline" onclick="undianLunas()"><i data-lucide="gift"></i> Undian Lunas</button>
+                </div>
+            </div>
+
+            <!-- Admin Sub-tabs -->
+            <div style="display:flex; gap:10px; margin-bottom:15px; border-bottom:1px solid var(--border-color); padding-bottom:10px;">
+                <button class="btn btn-outline admin-tab-item active" onclick="switchAdminTab('siswa')">Manajemen Siswa</button>
+                <button class="btn btn-outline admin-tab-item" onclick="switchAdminTab('pengeluaran')">Daftar Pengeluaran & Grafik</button>
+                <button class="btn btn-outline admin-tab-item" onclick="switchAdminTab('pengumuman')">Pengaturan & Pengumuman</button>
+                <button class="btn btn-outline admin-tab-item" onclick="switchAdminTab('audit')">Log Audit & Keamanan</button>
+            </div>
+
+            <!-- Tab 1: Siswa Admin -->
+            <div id="tab-siswa" class="admin-tab-content">
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Nama Siswa</th>
+                                <th>Gamifikasi</th>
+                                <th>Total Kas</th>
+                                <th>Aksi Admin</th>
+                            </tr>
+                        </thead>
+                        <tbody id="data-siswa-admin"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab 2: Pengeluaran Admin -->
+            <div id="tab-pengeluaran" class="admin-tab-content" style="display:none;">
+                <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; align-items:start;">
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Tanggal</th>
+                                    <th>Kategori</th>
+                                    <th>Keterangan</th>
+                                    <th>Sumber</th>
+                                    <th>Nominal</th>
+                                    <th>Bukti</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="data-pengeluaran"></tbody>
+                        </table>
                     </div>
-                    <div class="card info-card" style="border-left: 4px solid #0284c7;">
-                        <div>
-                            <h3>Saldo Digital (Bank/Dana)</h3>
-                            <h2 class="money-blur text-blue" id="saldo-digital">Rp 0</h2>
-                        </div>
-                    </div>
-                    <div class="card info-card card-highlight">
-                        <div>
-                            <h3 class="text-white">Total Saldo Bersih</h3>
-                            <h2 class="money-blur text-white" id="saldo-bersih">Rp 0</h2>
-                        </div>
+                    <div class="card" style="background:var(--bg-color);">
+                        <h4 style="margin-bottom:12px; font-weight:800;">Grafik Kategori Pengeluaran</h4>
+                        <canvas id="kategoriChart" style="max-height:220px;"></canvas>
                     </div>
                 </div>
             </div>
 
-            <!-- Kalender Interaktif -->
-            <div class="card calendar-section">
-                <div class="calendar-header">
-                    <button onclick="prevMonth()"><i data-lucide="chevron-left"></i></button>
-                    <h3 id="month-year">Januari 2026</h3>
-                    <button onclick="nextMonth()"><i data-lucide="chevron-right"></i></button>
+            <!-- Tab 3: Pengaturan -->
+            <div id="tab-pengumuman" class="admin-tab-content" style="display:none;">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+                    <div>
+                        <div class="form-group">
+                            <label>Ubah Teks Pengumuman Berjalan</label>
+                            <textarea id="input-pengumuman" class="form-control" rows="3" placeholder="Tulis pengumuman..."></textarea>
+                        </div>
+                        <button class="btn btn-primary" onclick="simpanPengumuman()">Simpan Pengumuman</button>
+                    </div>
+                    <div>
+                        <div class="form-group">
+                            <label>Judul Target Proyek</label>
+                            <input type="text" id="input-goal-title" class="form-control" placeholder="Contoh: Pameran DKV 2026">
+                        </div>
+                        <div class="form-group">
+                            <label>Nominal Target Proyek</label>
+                            <input type="number" id="input-goal-target" class="form-control" placeholder="500000">
+                        </div>
+                        <button class="btn btn-primary" onclick="simpanTargetProyek()">Simpan Target Proyek</button>
+                    </div>
                 </div>
-                <div class="calendar-grid days-header">
+                <div style="margin-top:25px; border-top:1px solid var(--border-color); padding-top:20px;">
+                    <button class="btn btn-danger" onclick="tutupBuku()"><i data-lucide="refresh-cw"></i> Reset / Tutup Buku Tahun Ini</button>
+                </div>
+            </div>
+
+            <!-- Tab 4: Audit -->
+            <div id="tab-audit" class="admin-tab-content" style="display:none;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h4 style="font-weight:800;">Rekonsiliasi & Log Aktivitas Sistem</h4>
+                    <div><b>Checkout Hari Ini:</b> <span id="daily-checkout" class="money-blur" style="color:var(--success);">Rp 0</span></div>
+                </div>
+                <div class="table-responsive" style="max-height:300px;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Waktu</th>
+                                <th>Aksi</th>
+                                <th>Keterangan Detail</th>
+                            </tr>
+                        </thead>
+                        <tbody id="data-audit"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Public Section -->
+        <div class="card" style="margin-bottom:25px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; margin-bottom:20px; border-bottom:1px solid var(--border-color); padding-bottom:15px;">
+                <div style="display:flex; gap:10px;" class="main-nav-tabs">
+                    <button class="btn btn-outline main-tab-btn active" onclick="switchMainView('tabel')"><i data-lucide="list"></i> Tabel Utama</button>
+                    <button class="btn btn-outline main-tab-btn" onclick="switchMainView('matrix')"><i data-lucide="grid"></i> Matriks 12 Bulan</button>
+                </div>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <input type="text" id="search-input" class="form-control" placeholder="Cari nama siswa..." oninput="filterData()" style="width:200px; padding:8px 12px;">
+                    <button class="btn btn-outline" onclick="generateBroadcastWA()"><i data-lucide="message-square"></i> Broadcast Tagihan</button>
+                    <button class="btn btn-outline" onclick="exportMatrixExcel()"><i data-lucide="file-spreadsheet"></i> Export Excel</button>
+                </div>
+            </div>
+
+            <!-- View 1: Tabel Utama -->
+            <div id="view-tabel">
+                <div style="display:flex; gap:8px; margin-bottom:15px; flex-wrap:wrap;">
+                    <button class="btn btn-outline pill active" onclick="setFilter('all', this)">Semua Siswa</button>
+                    <button class="btn btn-outline pill" onclick="setFilter('lunas', this)">Sudah Lunas Full</button>
+                    <button class="btn btn-outline pill" onclick="setFilter('belum', this)">Belum Lunas</button>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Nama Siswa</th>
+                                <th>Terkumpul Bulan Ini</th>
+                                <th>Status Minggu / Rekap</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="data-siswa-publik"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- View 2: Matriks 12 Bulan -->
+            <div id="view-matrix" style="display:none;">
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Nama Siswa</th>
+                                <th>Jan</th>
+                                <th>Feb</th>
+                                <th>Mar</th>
+                                <th>Apr</th>
+                                <th>Mei</th>
+                                <th>Jun</th>
+                                <th>Jul</th>
+                                <th>Agu</th>
+                                <th>Sep</th>
+                                <th>Okt</th>
+                                <th>Nov</th>
+                                <th>Des</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="data-matrix-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Grid -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:20px; margin-bottom:25px;">
+            <div class="card">
+                <h3 style="font-weight:900; margin-bottom:15px; display:flex; align-items:center; gap:8px;"><i data-lucide="activity"></i> Aktivitas Terkini</h3>
+                <ul id="public-activity-feed" style="list-style:none; display:flex; flex-direction:column; gap:12px;"></ul>
+            </div>
+            <div class="card">
+                <h3 style="font-weight:900; margin-bottom:15px; display:flex; align-items:center; gap:8px;"><i data-lucide="award"></i> Top Kontributor Kas</h3>
+                <div id="leaderboard-list" style="display:flex; flex-direction:column; gap:12px;"></div>
+            </div>
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <h3 style="font-weight:900;" id="month-year">Bulan Tahun</h3>
+                    <div style="display:flex; gap:5px;">
+                        <button class="btn btn-outline" style="padding:4px 8px;" onclick="prevMonth()"><</button>
+                        <button class="btn btn-outline" style="padding:4px 8px;" onclick="nextMonth()">></button>
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns: repeat(7, 1fr); text-align:center; font-weight:800; font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">
                     <div>Min</div><div>Sen</div><div>Sel</div><div>Rab</div><div>Kam</div><div>Jum</div><div>Sab</div>
                 </div>
-                <div class="calendar-grid" id="calendar-body"></div>
+                <div id="calendar-body" style="display:grid; grid-template-columns: repeat(7, 1fr); gap:4px; text-align:center; font-size:0.85rem;"></div>
             </div>
         </div>
 
-        <!-- WIDGETS -->
-        <div class="widgets-row animate-fade">
-            <div class="card widget-card">
-                <div class="section-header" style="margin-bottom: 15px;">
-                    <div class="title-with-icon" style="font-size: 1rem;"><i data-lucide="trophy" style="color: #f59e0b;"></i><h2>Top Kontributor (Semua Waktu)</h2></div>
-                </div>
-                <div id="leaderboard-list" class="leaderboard-list"></div>
-            </div>
-            <div class="card widget-card">
-                <div class="section-header" style="margin-bottom: 15px;">
-                    <div class="title-with-icon" style="font-size: 1rem;"><i data-lucide="activity" style="color: var(--primary-dark);"></i><h2>Riwayat Transaksi Terbaru</h2></div>
-                </div>
-                <div id="public-activity-feed" class="activity-feed"></div>
-            </div>
-        </div>
-
-        <!-- TABEL TRANSPARANSI PENGELUARAN KELAS (PUBLIK) -->
-        <div class="card table-container animate-fade" style="margin-bottom: 25px;">
-            <div class="section-header">
-                <div class="title-with-icon"><i data-lucide="receipt"></i><h2>Transparansi Pengeluaran Kas Kelas</h2></div>
-                <p class="subtitle">Daftar lengkap penggunaan uang kas beserta alasan dan bukti nota.</p>
-            </div>
+        <!-- Tabel Pengeluaran Publik -->
+        <div class="card">
+            <h3 style="font-weight:900; margin-bottom:15px; display:flex; align-items:center; gap:8px;"><i data-lucide="receipt"></i> Transparansi Pengeluaran Kas</h3>
             <div class="table-responsive">
                 <table>
                     <thead>
                         <tr>
                             <th>Tanggal</th>
                             <th>Kategori</th>
-                            <th>Keterangan / Alasan</th>
+                            <th>Keterangan</th>
                             <th>Sumber Dana</th>
                             <th>Nominal</th>
                             <th>Bukti Nota</th>
@@ -174,330 +337,169 @@
             </div>
         </div>
 
-        <div class="main-nav-tabs animate-fade">
-            <button class="main-tab-btn active" onclick="switchMainView('tabel')"><i data-lucide="users"></i> Rekap Status Siswa</button>
-            <button class="main-tab-btn" onclick="switchMainView('matrix')"><i data-lucide="calendar-range"></i> Matriks 12 Bulan</button>
-        </div>
-
-        <!-- VIEW 1: TABEL SISWA (PUBLIK) -->
-        <div class="card table-container animate-fade" id="view-tabel">
-            <div class="section-header flex-between">
-                <div>
-                    <div class="title-with-icon"><i data-lucide="list-checks"></i><h2>Status Pembayaran Siswa</h2></div>
-                    <p class="subtitle">Klik nama siswa untuk melihat gelar gamifikasi & mencetak kwitansi.</p>
-                </div>
-                <div class="table-controls">
-                    <div class="search-box">
-                        <i data-lucide="search"></i>
-                        <input type="text" id="search-input" placeholder="Cari nama siswa..." oninput="filterData()">
-                    </div>
-                    <div class="filter-pills">
-                        <button class="pill active" onclick="setFilter('all', this)">Semua</button>
-                        <button class="pill" onclick="setFilter('lunas', this)">Lunas</button>
-                        <button class="pill" onclick="setFilter('belum', this)">Belum</button>
-                    </div>
-                </div>
-            </div>
-            <div class="table-responsive">
-                <table id="tabel-kas-publik">
-                    <thead>
-                        <tr>
-                            <th>Rank</th>
-                            <th>Profil Siswa</th>
-                            <th>Setoran Bulan Ini</th>
-                            <th>Status (Target Rp 3.000)</th>
-                            <th>Aksi Detail</th>
-                        </tr>
-                    </thead>
-                    <tbody id="data-siswa-publik"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- VIEW 2: MATRIKS TAHUNAN -->
-        <div class="card table-container animate-fade" id="view-matrix" style="display: none;">
-            <div class="section-header flex-between">
-                <div class="title-with-icon"><i data-lucide="table"></i><h2>Matriks Laporan Tahunan</h2></div>
-                <div style="display: flex; gap: 10px;">
-                    <button class="btn btn-outline" onclick="printReport()"><i data-lucide="printer"></i> Cetak Laporan PDF</button>
-                    <button class="btn btn-outline" onclick="exportMatrixExcel()"><i data-lucide="file-spreadsheet"></i> Export Excel</button>
-                </div>
-            </div>
-            <div class="table-responsive">
-                <table class="matrix-table" id="tabel-matrix-rekap">
-                    <thead>
-                        <tr>
-                            <th>No</th><th>Nama Siswa</th>
-                            <th>Jan</th><th>Feb</th><th>Mar</th><th>Apr</th><th>Mei</th><th>Jun</th>
-                            <th>Jul</th><th>Agu</th><th>Sep</th><th>Okt</th><th>Nov</th><th>Des</th>
-                            <th>Total</th>
-                        </tr>
-                    </thead>
-                    <tbody id="data-matrix-body"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- ADMIN PANEL -->
-        <div class="card table-container admin-panel-clean" id="admin-panel" style="display: none;">
-            <div class="admin-clean-header">
-                <div class="admin-title-group">
-                    <div class="admin-icon-badge"><i data-lucide="shield-check"></i></div>
-                    <div>
-                        <h2>Panel Kontrol Pengurus (Admin Pro)</h2>
-                        <p>Kelola kas, data siswa, dan audit keuangan dengan cepat & aman.</p>
-                    </div>
-                </div>
-                <div class="admin-quick-actions">
-                    <button class="btn btn-success btn-sm" onclick="openFormModal()"><i data-lucide="user-plus"></i> Tambah Siswa</button>
-                    <button class="btn btn-primary btn-sm" onclick="openPaymentModal()"><i data-lucide="plus-circle"></i> Input Iuran</button>
-                    <button class="btn btn-warning btn-sm" onclick="openPemasukanLainModal()"><i data-lucide="coins"></i> Kas Masuk Lain</button>
-                    <button class="btn btn-danger btn-sm" onclick="openExpenseModal()"><i data-lucide="minus-circle"></i> Kas Keluar</button>
-                </div>
-            </div>
-
-            <div class="admin-clean-tabs">
-                <button class="admin-tab-item active" onclick="switchAdminTab('siswa')">
-                    <i data-lucide="users"></i> Manajemen Siswa
-                </button>
-                <button class="admin-tab-item" onclick="switchAdminTab('pengeluaran')">
-                    <i data-lucide="pie-chart"></i> Pengeluaran & Grafik
-                </button>
-                <button class="admin-tab-item" onclick="switchAdminTab('pengumuman')">
-                    <i data-lucide="upload-cloud"></i> Pengumuman & Import Excel
-                </button>
-                <button class="admin-tab-item" onclick="switchAdminTab('audit')">
-                    <i data-lucide="clipboard-list"></i> Checkout & Log Audit
-                </button>
-            </div>
-
-            <!-- TAB 1 -->
-            <div id="tab-siswa" class="admin-tab-content active">
-                <div class="admin-sub-toolbar">
-                    <button class="btn btn-whatsapp btn-sm" onclick="generateBroadcastWA()"><i data-lucide="message-square-share"></i> Copy Teks Tagihan WA</button>
-                    <button class="btn btn-outline-danger btn-sm" onclick="tutupBuku()"><i data-lucide="archive"></i> Tutup Buku Akhir Tahun</button>
-                </div>
-                <div class="table-responsive">
-                    <table id="tabel-kas-admin">
-                        <thead><tr><th>No</th><th>Nama Siswa</th><th>Gelar/Titel Gamifikasi</th><th>Total Kas</th><th>Aksi Admin</th></tr></thead>
-                        <tbody id="data-siswa-admin"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- TAB 2 -->
-            <div id="tab-pengeluaran" class="admin-tab-content" style="display: none;">
-                <div class="table-responsive" style="margin-bottom: 25px;">
-                    <table id="tabel-pengeluaran">
-                        <thead><tr><th>Tanggal</th><th>Kategori</th><th>Keterangan</th><th>Sumber Dana</th><th>Nominal</th><th>Bukti Nota</th><th>Aksi</th></tr></thead>
-                        <tbody id="data-pengeluaran"></tbody>
-                    </table>
-                </div>
-                <div class="admin-card-inner">
-                    <h3>Proporsi Kategori Pengeluaran Kelas</h3>
-                    <div class="chart-container" style="max-width: 450px; margin: 0 auto;"><canvas id="kategoriChart"></canvas></div>
-                </div>
-            </div>
-
-            <!-- TAB 3 -->
-            <div id="tab-pengumuman" class="admin-tab-content" style="display: none;">
-                <div class="admin-grid-2col">
-                    <div class="admin-card-inner">
-                        <h3><i data-lucide="megaphone" style="color:var(--primary-dark);"></i> Papan Pengumuman Kelas</h3>
-                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Pesan ini akan langsung tampil di beranda utama seluruh siswa.</p>
-                        <div class="input-group">
-                            <div class="input-wrapper"><i data-lucide="message-square"></i><input type="text" id="input-pengumuman" placeholder="Ketik pengumuman baru..."></div>
-                        </div>
-                        <button class="btn btn-primary w-100" onclick="simpanPengumuman()"><i data-lucide="send"></i> Publikasikan Pengumuman</button>
-                    </div>
-
-                    <div class="admin-card-inner">
-                        <h3><i data-lucide="file-spreadsheet" style="color:var(--success);"></i> Import Data Siswa (.xlsx)</h3>
-                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Pastikan nama siswa berada di Kolom A pada file Excel Anda.</p>
-                        
-                        <div class="upload-dropzone" onclick="document.getElementById('excel-file').click()">
-                            <svg class="upload-svg-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-                            <p id="file-name-label" style="font-weight: 700; margin-top: 8px; font-size: 0.9rem;">Klik untuk pilih file Excel</p>
-                            <span style="font-size: 0.75rem; color: var(--text-muted);">Format didukung: .xlsx, .xls</span>
-                            <input type="file" id="excel-file" accept=".xlsx, .xls" style="display:none;" onchange="updateFileName(this)">
-                        </div>
-
-                        <button class="btn btn-excel w-100" style="margin-top: 15px;" onclick="importExcel()"><i data-lucide="upload-cloud"></i> Proses Import Data</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- TAB 4 -->
-            <div id="tab-audit" class="admin-tab-content" style="display: none;">
-                <div class="admin-checkout-banner" style="margin-bottom: 20px;">
-                    <div>
-                        <span style="font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted);">Uang Masuk Hari Ini (Checkout)</span>
-                        <h2 class="money-blur" id="daily-checkout" style="color:var(--primary-dark); font-size: 1.8rem; font-weight: 900; margin-top: 4px;">Rp 0</h2>
-                    </div>
-                    <div class="icon-wrapper bg-soft-green"><i data-lucide="wallet"></i></div>
-                </div>
-                <div class="table-responsive">
-                    <table id="tabel-audit">
-                        <thead><tr><th>Waktu Eksekusi</th><th>Aksi Sistem</th><th>Detail Keterangan</th></tr></thead>
-                        <tbody id="data-audit"></tbody>
-                    </table>
-                </div>
-            </div>
-
-        </div>
-    </div>
-
-    <!-- PRINT SP AREA -->
-    <div id="print-sp-area" class="print-only">
-        <div style="padding: 40px; max-width: 700px; margin: 0 auto; font-family: serif; color:black; line-height: 1.6;">
-            <h2 style="text-align: center; text-decoration: underline; margin-bottom: 2px;">SURAT PERINGATAN TUNGGAKAN KAS</h2>
-            <h4 style="text-align: center; margin-bottom: 30px;">Pengurus Kelas XI DKV 1</h4>
-            <p>Kepada Yth. Saudara/i <b><span id="sp-nama"></span></b>,</p>
-            <p>Berdasarkan rekapitulasi buku kas kelas, kami memberitahukan bahwa Anda memiliki tunggakan iuran kas wajib bulanan dengan rincian sebagai berikut:</p>
-            <ul style="margin: 15px 0 15px 40px;">
-                <li>Status Bulan Ini: <b>BELUM LUNAS</b></li>
-                <li>Total Kekurangan Setoran: <b><span id="sp-nominal"></span></b></li>
-            </ul>
-            <p>Mohon kerjasamanya untuk segera melunasi tunggakan tersebut kepada Bendahara Kelas paling lambat minggu ini demi kelancaran agenda kelas bersama.</p>
-            <div style="margin-top: 50px; text-align: right;">
-                <p>Bandung, <span id="sp-tgl"></span></p>
-                <p style="margin-bottom: 80px;">Bendahara Kelas,</p>
-                <p><b>( Syall Official )</b></p>
-            </div>
-        </div>
-    </div>
-
-    <!-- PRINT KWITANSI AREA -->
-    <div id="print-kwitansi-area" class="print-only">
-        <div style="border: 2px dashed #000; padding: 40px; border-radius: 10px; max-width: 600px; margin: 0 auto; color:#000;">
-            <h2 style="text-align: center; font-size: 24px; margin-bottom: 5px;">KWITANSI DIGITAL KAS KELAS</h2>
-            <h4 style="text-align: center; color: #555; margin-bottom: 30px;">Kelas XI DKV 1</h4>
-            <table style="width: 100%; border: none; font-size: 16px;">
-                <tr><td style="width: 150px; padding: 8px 0; border: none;">No. Transaksi</td><td style="border: none;">: <span id="kwi-no"></span></td></tr>
-                <tr><td style="padding: 8px 0; border: none;">Telah Terima Dari</td><td style="border: none;">: <b><span id="kwi-nama"></span></b></td></tr>
-                <tr><td style="padding: 8px 0; border: none;">Untuk Pembayaran</td><td style="border: none;">: Iuran Kas Kelas Berjalan</td></tr>
-                <tr><td style="padding: 8px 0; border: none;">Tanggal Setor</td><td style="border: none;">: <span id="kwi-tgl"></span></td></tr>
-            </table>
-            <div style="background: #e2e8f0; padding: 20px; border-radius: 10px; margin-top: 25px; text-align: center;">
-                <span style="font-size: 14px;">Total Nominal Setoran:</span><br>
-                <span style="font-size: 34px; font-weight: bold;" id="kwi-nominal"></span>
-            </div>
-            <div style="margin-top: 40px; text-align: right;">
-                <p>Penerima / Bendahara Kelas,</p><br><br><br><p><b>( Syall Official )</b></p>
-            </div>
-        </div>
     </div>
 
     <!-- MODALS -->
+
+    <!-- Login Modal -->
     <div id="login-modal" class="modal">
-        <div class="modal-box">
-            <button class="close-btn" onclick="closeModal('login-modal')"><i data-lucide="x"></i></button>
-            <div class="modal-header">
-                <div class="icon-wrapper bg-soft-blue mx-auto"><i data-lucide="lock"></i></div>
-                <h2>Login Admin Kelas</h2>
+        <div class="modal-content">
+            <h3 style="font-weight:900; margin-bottom:15px;">Login Bendahara</h3>
+            <div class="form-group"><label>Username</label><input type="text" id="username" class="form-control" placeholder="username"></div>
+            <div class="form-group"><label>Password</label><input type="password" id="password" class="form-control" placeholder="password"></div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+                <button class="btn btn-outline" onclick="closeModal('login-modal')">Batal</button>
+                <button class="btn btn-primary" onclick="prosesLogin()">Masuk</button>
             </div>
-            <div class="input-group">
-                <label>Username</label>
-                <div class="input-wrapper"><i data-lucide="user"></i><input type="text" id="username" placeholder="Masukkan Username"></div>
-            </div>
-            <div class="input-group">
-                <label>Password</label>
-                <div class="input-wrapper"><i data-lucide="key"></i><input type="password" id="password" placeholder="••••••••"></div>
-            </div>
-            <button class="btn btn-primary w-100" onclick="prosesLogin()"><i data-lucide="log-in"></i> Akses Panel Pro</button>
         </div>
     </div>
 
-    <div id="payment-modal" class="modal">
-        <div class="modal-box" style="max-width: 500px;">
-            <button class="close-btn" onclick="closeModal('payment-modal')"><i data-lucide="x"></i></button>
-            <div class="modal-header"><h2>Input Setoran Iuran</h2></div>
-            <div class="input-group"><label>Pilih Siswa</label><select id="pay-siswa-id" class="custom-select"></select></div>
-            <div class="input-group"><label>Nominal Setoran Kas (Rp)</label><div class="input-wrapper"><i data-lucide="coins"></i><input type="number" id="pay-amount" placeholder="Cth: 3000"></div></div>
-            <div class="input-group" style="background:var(--bg-main); padding:15px; border-radius:12px; border: 1px solid var(--border-color);">
-                <label><i data-lucide="calculator" style="width:14px; display:inline-block; vertical-align:middle;"></i> Uang Diterima dari Siswa (Hitung Kembalian)</label>
-                <div class="input-wrapper"><input type="number" id="pay-uang-diterima" placeholder="Cth: 50000" style="background: white;"></div>
-                <p id="pay-kembalian" style="font-weight:900; color:var(--success); margin-top:10px; font-size:1.15rem;">Kembalian: Rp 0</p>
-            </div>
-            <div class="input-group"><label>Simpan Ke</label><select id="pay-sumber" class="custom-select"><option value="fisik">Dompet Tunai (Fisik)</option><option value="digital">Saldo Digital (Bank/E-Wallet)</option></select></div>
-            <div class="input-group" style="display:flex; gap:12px; align-items:center; background: var(--warning-light); padding: 10px; border-radius:10px;">
-                <input type="checkbox" id="pay-talangan" style="width:24px; height:24px;">
-                <label style="margin:0; color:var(--warning); cursor:pointer;" for="pay-talangan">Tandai sebagai Kas Talangan / Hutang Siswa</label>
-            </div>
-            <div class="input-group"><label>Tanggal Setoran</label><div class="input-wrapper"><i data-lucide="calendar"></i><input type="date" id="pay-date"></div></div>
-            <button class="btn btn-success w-100" onclick="prosesTambahCicilan()"><i data-lucide="check"></i> Simpan Setoran</button>
-        </div>
-    </div>
-
-    <div id="expense-modal" class="modal">
-        <div class="modal-box">
-            <button class="close-btn" onclick="closeModal('expense-modal')"><i data-lucide="x"></i></button>
-            <div class="modal-header"><h2>Catat Kas Keluar</h2></div>
-            <div class="input-group"><label>Kategori</label><select id="exp-kategori" class="custom-select"><option value="Alat Kebersihan">🧹 Alat Kebersihan</option><option value="Fotokopi / ATK">🖨️ Fotokopi / ATK</option><option value="Acara Kelas">🏆 Acara / Lomba Kelas</option><option value="Sosial / Menjenguk">🏥 Menjenguk Sakit / Sosial</option><option value="Lainnya">Lainnya</option></select></div>
-            <div class="input-group"><label>Keterangan Detail</label><div class="input-wrapper"><i data-lucide="file-text"></i><input type="text" id="exp-desc" placeholder="Cth: Beli Sapu Lidi"></div></div>
-            <div class="input-group"><label>Nominal (Rp)</label><div class="input-wrapper"><i data-lucide="coins"></i><input type="number" id="exp-amount"></div></div>
-            <div class="input-group"><label>Uang Diambil Dari</label><select id="exp-sumber" class="custom-select"><option value="fisik">Dompet Tunai</option><option value="digital">Saldo Digital</option></select></div>
-            <div class="input-group"><label>URL Bukti (Opsional)</label><div class="input-wrapper"><i data-lucide="image"></i><input type="text" id="exp-bukti" placeholder="Link GDrive/Imgur..."></div></div>
-            <div class="input-group"><label>Tanggal</label><div class="input-wrapper"><i data-lucide="calendar"></i><input type="date" id="exp-date"></div></div>
-            <button class="btn btn-danger w-100" onclick="prosesTambahPengeluaran()"><i data-lucide="minus-circle"></i> Potong Kas</button>
-        </div>
-    </div>
-    
-    <div id="lain-modal" class="modal">
-        <div class="modal-box">
-            <button class="close-btn" onclick="closeModal('lain-modal')"><i data-lucide="x"></i></button>
-            <div class="modal-header"><h2>Kas Masuk Tambahan</h2></div>
-            <div class="input-group"><label>Keterangan</label><div class="input-wrapper"><i data-lucide="file-text"></i><input type="text" id="lain-desc" placeholder="Cth: Denda tidak piket"></div></div>
-            <div class="input-group"><label>Nominal (Rp)</label><div class="input-wrapper"><i data-lucide="coins"></i><input type="number" id="lain-amount"></div></div>
-            <div class="input-group"><label>Simpan Ke</label><select id="lain-sumber" class="custom-select"><option value="fisik">Dompet Tunai</option><option value="digital">Saldo Digital</option></select></div>
-            <button class="btn btn-warning w-100" onclick="prosesTambahLain()"><i data-lucide="save"></i> Simpan Pemasukan</button>
-        </div>
-    </div>
-
+    <!-- Student Form Modal -->
     <div id="form-modal" class="modal">
-        <div class="modal-box">
-            <button class="close-btn" onclick="closeModal('form-modal')"><i data-lucide="x"></i></button>
-            <div class="modal-header"><h2 id="form-title">Tambah Siswa Baru</h2></div>
+        <div class="modal-content">
+            <h3 id="form-title" style="font-weight:900; margin-bottom:15px;">Tambah Siswa</h3>
             <input type="hidden" id="form-id">
-            <div class="input-group"><label>Nama Lengkap</label><div class="input-wrapper"><i data-lucide="user"></i><input type="text" id="form-nama" placeholder="Nama siswa..."></div></div>
-            <button class="btn btn-primary w-100" onclick="simpanDataSiswa()"><i data-lucide="save"></i> Simpan Database</button>
+            <div class="form-group"><label>Nama Lengkap</label><input type="text" id="form-nama" class="form-control" placeholder="Nama siswa"></div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+                <button class="btn btn-outline" onclick="closeModal('form-modal')">Batal</button>
+                <button class="btn btn-primary" onclick="simpanDataSiswa()">Simpan</button>
+            </div>
         </div>
     </div>
 
-    <div id="student-modal" class="modal">
-        <div class="modal-box profile-box" style="max-width: 520px; padding: 32px;">
-            <button class="close-btn" onclick="closeModal('student-modal')"><i data-lucide="x"></i></button>
-            <div class="profile-header-card" style="text-align: center; margin-bottom: 20px;">
-                <div class="profile-avatar-container" style="position: relative; display: inline-block;">
-                    <img id="profil-avatar" src="" style="width: 100px; height: 100px; border-radius: 50%; border: 4px solid var(--secondary); background: white;">
-                    <div id="profil-badge-level" style="position: absolute; bottom: 0; right: 0; background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; font-size: 0.65rem; padding: 4px 10px; border-radius: 12px; font-weight: 800;"></div>
+    <!-- Payment Modal -->
+    <div id="payment-modal" class="modal">
+        <div class="modal-content">
+            <h3 style="font-weight:900; margin-bottom:15px;">Catat Setoran Kas</h3>
+            <div class="form-group"><label>Pilih Siswa</label><select id="pay-siswa-id" class="form-control"></select></div>
+            <div class="form-group"><label>Tanggal Setor</label><input type="date" id="pay-date" class="form-control"></div>
+            <div class="form-group"><label>Nominal Setor (Rp)</label><input type="number" id="pay-amount" class="form-control" placeholder="3000"></div>
+            <div class="form-group"><label>Uang Diterima (Untuk Hitung Kembalian)</label><input type="number" id="pay-uang-diterima" class="form-control" placeholder="5000"></div>
+            <div id="pay-kembalian" style="font-weight:800; margin-bottom:12px; font-size:0.9rem;">Kembalian: Rp 0</div>
+            <div class="form-group"><label>Sumber Kas</label><select id="pay-sumber" class="form-control"><option value="tunai">Tunai / Fisik</option><option value="digital">Digital / QRIS</option></select></div>
+            <div class="form-group" style="display:flex; align-items:center; gap:8px;"><input type="checkbox" id="pay-talangan"> <label for="pay-talangan" style="margin:0;">Tandai sebagai Talangan Bendahara</label></div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+                <button class="btn btn-outline" onclick="closeModal('payment-modal')">Batal</button>
+                <button class="btn btn-primary" onclick="prosesTambahCicilan()">Simpan Setoran</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Expense Modal -->
+    <div id="expense-modal" class="modal">
+        <div class="modal-content">
+            <h3 style="font-weight:900; margin-bottom:15px;">Catat Pengeluaran Kas</h3>
+            <div class="form-group"><label>Tanggal</label><input type="date" id="exp-date" class="form-control"></div>
+            <div class="form-group"><label>Kategori</label><select id="exp-kategori" class="form-control"><option value="Kebersihan">Kebersihan</option><option value="ATK & Buku">ATK & Buku</option><option value="Konsumsi">Konsumsi</option><option value="Lainnya">Lainnya</option></select></div>
+            <div class="form-group"><label>Keterangan</label><input type="text" id="exp-desc" class="form-control" placeholder="Beli sapu ijuk..."></div>
+            <div class="form-group"><label>Nominal (Rp)</label><input type="number" id="exp-amount" class="form-control" placeholder="15000"></div>
+            <div class="form-group"><label>Sumber Kas</label><select id="exp-sumber" class="form-control"><option value="tunai">Tunai / Fisik</option><option value="digital">Digital / QRIS</option></select></div>
+            <div class="form-group"><label>Link Bukti Nota (Opsional)</label><input type="text" id="exp-bukti" class="form-control" placeholder="https://..."></div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+                <button class="btn btn-outline" onclick="closeModal('expense-modal')">Batal</button>
+                <button class="btn btn-primary" onclick="prosesTambahPengeluaran()">Catat Pengeluaran</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pemasukan Lain Modal -->
+    <div id="lain-modal" class="modal">
+        <div class="modal-content">
+            <h3 style="font-weight:900; margin-bottom:15px;">Pemasukan Lain Kas</h3>
+            <div class="form-group"><label>Keterangan</label><input type="text" id="lain-desc" class="form-control" placeholder="Sumbangan sukarela..."></div>
+            <div class="form-group"><label>Nominal (Rp)</label><input type="number" id="lain-amount" class="form-control" placeholder="50000"></div>
+            <div class="form-group"><label>Sumber Kas</label><select id="lain-sumber" class="form-control"><option value="tunai">Tunai / Fisik</option><option value="digital">Digital / QRIS</option></select></div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+                <button class="btn btn-outline" onclick="closeModal('lain-modal')">Batal</button>
+                <button class="btn btn-primary" onclick="prosesTambahLain()">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- QRIS Modal -->
+    <div id="qris-modal" class="modal">
+        <div class="modal-content" style="text-align:center;">
+            <h3 style="font-weight:900; margin-bottom:15px;">Pembayaran QRIS Kas</h3>
+            <div class="form-group" style="text-align:left;"><label>Pilih Siswa yang Membayar</label><select id="qris-siswa-id" class="form-control"></select></div>
+            <div class="form-group" style="text-align:left;"><label>Masukkan Nominal (Rp)</label><input type="number" id="qris-amount" class="form-control" placeholder="12000"></div>
+            <button class="btn btn-primary" onclick="generateQrisCode()" style="width:100%; margin-bottom:15px;"><i data-lucide="qr-code"></i> Tampilkan QRIS</button>
+            
+            <div id="qris-result-container" style="display:none; margin-top:15px; border-top:1px solid var(--border-color); padding-top:15px;">
+                <div id="qris-img-wrapper" style="margin-bottom:12px;"></div>
+                <div id="qris-info" style="font-weight:800; font-size:0.95rem; margin-bottom:8px; color:var(--primary-dark);"></div>
+                <div id="qris-timer" style="font-size:0.85rem; color:var(--danger); font-weight:700; margin-bottom:15px;"></div>
+                <div style="display:flex; gap:10px;">
+                    <button class="btn btn-outline" onclick="batalkanPembayaranQris()" style="flex:1;">Batalkan</button>
+                    <button class="btn btn-success" onclick="konfirmasiPembayaranQris()" style="flex:1;"><i data-lucide="check-circle"></i> Sudah Transfer</button>
                 </div>
-                <h2 id="profil-nama" style="margin-top: 10px; font-weight: 800;">Nama Siswa</h2>
-                <p id="profil-gamifikasi" style="font-weight: 900; color: var(--warning); font-size: 1rem; margin: 4px 0;">Sultan Kelas 👑</p>
-                <div id="profil-status-badge" style="margin-top: 10px;"></div>
             </div>
-            <div class="profile-stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
-                <div class="bg-soft-blue" style="padding: 16px; border-radius: 14px; text-align: center;"><p style="font-size: 0.75rem; font-weight: 800; margin-bottom: 5px;">TOTAL KAS</p><h3 class="money-blur" id="profil-total" style="font-size: 1.3rem; font-weight: 900;">Rp 0</h3></div>
-                <div class="bg-soft-red" style="padding: 16px; border-radius: 14px; text-align: center;"><p style="font-size: 0.75rem; font-weight: 800; margin-bottom: 5px;">SISA BULAN INI</p><h3 class="money-blur" id="profil-sisa" style="font-size: 1.3rem; font-weight: 900;">Rp 0</h3></div>
-            </div>
-            <button class="btn btn-outline w-100" style="margin-bottom: 20px; border-color:#000; color:#000;" onclick="cetakKwitansi()"><i data-lucide="printer"></i> Cetak Kwitansi Setoran Terakhir (PDF)</button>
-            <div class="history-section">
-                <h3 style="font-size: 0.95rem; font-weight: 800; margin-bottom: 12px; border-bottom: 2px dashed var(--border-color); padding-bottom: 8px;">Riwayat Setoran Siswa</h3>
-                <ul class="history-list" id="history-list" style="list-style: none; display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto;"></ul>
-            </div>
-        </div>
-    </div>
-    
-    <div id="undian-modal" class="modal">
-        <div class="modal-box" style="text-align:center; padding: 40px;">
-            <button class="close-btn" onclick="closeModal('undian-modal')"><i data-lucide="x"></i></button>
-            <h2 style="margin-bottom:20px; font-weight:900;">Undian Reward Siswa Lunas 🎉</h2>
-            <div id="undian-name" style="font-size:2rem; font-weight:900; margin:30px 0; padding:30px; background:var(--secondary); border-radius:15px; border: 2px dashed var(--primary-dark); color:var(--primary-dark);">Siapa yang beruntung?</div>
-            <button class="btn btn-primary w-100" id="btn-spin" onclick="mulaiUndian()" style="padding: 15px; font-size: 1.1rem;"><i data-lucide="dices"></i> Putar Undian Sekarang!</button>
+            <div style="margin-top:15px;"><button class="btn btn-outline" onclick="closeModal('qris-modal')">Tutup</button></div>
         </div>
     </div>
 
+    <!-- Splitter Modal -->
+    <div id="splitter-modal" class="modal">
+        <div class="modal-content">
+            <h3 style="font-weight:900; margin-bottom:15px;">Kalkulator Patungan</h3>
+            <div class="form-group"><label>Total Biaya (Rp)</label><input type="number" id="split-total" class="form-control" placeholder="100000"></div>
+            <div class="form-group"><label>Jumlah Orang</label><input type="number" id="split-count" class="form-control" placeholder="32"></div>
+            <div style="font-weight:900; font-size:1.1rem; color:var(--primary); margin:15px 0;" id="split-result">Hasil per orang: Rp 0</div>
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button class="btn btn-outline" onclick="closeModal('splitter-modal')">Tutup</button>
+                <button class="btn btn-primary" onclick="hitungPatungan()">Hitung</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Detail Modal -->
+    <div id="student-modal" class="modal">
+        <div class="modal-content">
+            <div style="display:flex; align-items:center; gap:15px; margin-bottom:20px; border-bottom:1px solid var(--border-color); padding-bottom:15px;">
+                <img id="profil-avatar" src="" style="width:60px; height:60px; border-radius:50%; background:var(--secondary);">
+                <div>
+                    <h3 id="profil-nama" style="font-weight:900;">Nama Siswa</h3>
+                    <p id="profil-gamifikasi" style="font-size:0.8rem; font-weight:800; color:var(--purple);">Gamifikasi</p>
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px;">
+                <div class="card" style="padding:12px; background:var(--bg-color);">
+                    <div style="font-size:0.75rem; color:var(--text-muted); font-weight:700;">TOTAL KAS</div>
+                    <div id="profil-total" class="money-blur" style="font-size:1.1rem; font-weight:900; color:var(--primary-dark);">Rp 0</div>
+                </div>
+                <div class="card" style="padding:12px; background:var(--bg-color);">
+                    <div style="font-size:0.75rem; color:var(--text-muted); font-weight:700;">SISA / STATUS</div>
+                    <div id="profil-sisa" style="font-size:1.1rem; font-weight:900;">Rp 0</div>
+                </div>
+            </div>
+            <div style="margin-bottom:15px; display:flex; justify-content:space-between; align-items:center;">
+                <h4 style="font-size:0.9rem; font-weight:800;" id="profil-bulan-label">Bulan Ini</h4>
+                <div id="profil-status-badge"></div>
+            </div>
+            <div id="profil-weekly-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:20px;"></div>
+            <h4 style="font-size:0.9rem; font-weight:800; margin-bottom:10px;">Riwayat Setoran Siswa</h4>
+            <ul id="history-list" style="list-style:none; max-height:150px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; margin-bottom:20px;"></ul>
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-outline" onclick="cetakKwitansi()" style="flex:1;"><i data-lucide="printer"></i> Cetak Kwitansi</button>
+                <button class="btn btn-primary" onclick="closeModal('student-modal')" style="flex:1;">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Undian Modal -->
+    <div id="undian-modal" class="modal">
+        <div class="modal-content" style="text-align:center;">
+            <h3 style="font-weight:900; margin-bottom:15px;">🎉 Undian Kontributor Lunas</h3>
+            <div id="undian-name" style="font-size:1.5rem; font-weight:900; color:var(--purple); margin:25px 0; min-height:50px;">Siapa yang beruntung?</div>
+            <button class="btn btn-primary" onclick="mulaiUndian()" style="width:100%; margin-bottom:10px;">Mulai Acak Undian</button>
+            <button class="btn btn-outline" onclick="closeModal('undian-modal')" style="width:100%;">Tutup</button>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
     <textarea id="hidden-copy-area" style="position:absolute; left:-9999px;"></textarea>
+
+    <!-- Script File -->
     <script src="script.js"></script>
 </body>
-</html>
+    </html>

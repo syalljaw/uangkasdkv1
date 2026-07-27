@@ -151,6 +151,29 @@
             </div>
         </div>
 
+        <!-- TABEL TRANSPARANSI PENGELUARAN KELAS (PUBLIK) -->
+        <div class="card table-container animate-fade" style="margin-bottom: 25px;">
+            <div class="section-header">
+                <div class="title-with-icon"><i data-lucide="receipt"></i><h2>Transparansi Pengeluaran Kas Kelas</h2></div>
+                <p class="subtitle">Daftar lengkap penggunaan uang kas beserta alasan dan bukti nota.</p>
+            </div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tanggal</th>
+                            <th>Kategori</th>
+                            <th>Keterangan / Alasan</th>
+                            <th>Sumber Dana</th>
+                            <th>Nominal</th>
+                            <th>Bukti Nota</th>
+                        </tr>
+                    </thead>
+                    <tbody id="public-expense-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="main-nav-tabs animate-fade">
             <button class="main-tab-btn active" onclick="switchMainView('tabel')"><i data-lucide="users"></i> Rekap Status Siswa</button>
             <button class="main-tab-btn" onclick="switchMainView('matrix')"><i data-lucide="calendar-range"></i> Matriks 12 Bulan</button>

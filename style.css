@@ -74,7 +74,7 @@ body.privacy-on .money-blur:hover { filter: blur(0px); }
 .cal-day { padding: 10px 0; font-size: 0.85rem; font-weight: 700; border-radius: 10px; color: var(--text-dark); }
 .cal-day.empty { visibility: hidden; } .cal-day.today { background: var(--primary-dark); color: white; font-weight: 900; }
 
-.widgets-row { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-bottom: 30px; }
+.widgets-row { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-bottom: 25px; }
 @media (max-width: 850px) { .widgets-row { grid-template-columns: 1fr; } }
 .leaderboard-list, .activity-feed, .history-list { display: flex; flex-direction: column; gap: 12px; max-height: 250px; overflow-y: auto; padding-right: 5px; list-style:none;}
 .leaderboard-item, .activity-item, .history-item { display: flex; justify-content: space-between; align-items: center; background: var(--bg-main); padding: 14px 18px; border-radius: 16px; border: 1px solid var(--border-color); font-size: 0.9rem; font-weight:700; }

@@ -26,16 +26,12 @@ body.privacy-on .money-blur:hover { filter: blur(0px); }
 .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
 .w-100 { width: 100%; } .mx-auto { margin-left: auto; margin-right: auto; }
 
-@keyframes spin { 100% { transform: rotate(360deg); } }
 @keyframes fadeInSlideUp { 0% { opacity: 0; transform: translateY(20px); } 100% { opacity: 1; transform: translateY(0); } }
 .animate-fade { animation: fadeInSlideUp 0.6s forwards; opacity: 0; }
 
 #toast-container { position: fixed; bottom: 25px; right: 25px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
 .toast { background: var(--text-dark); color: var(--bg-main); padding: 14px 24px; border-radius: 14px; font-weight: 700; font-size: 0.95rem; box-shadow: var(--shadow-md); display: flex; align-items: center; gap: 12px; }
 .toast.success { background: var(--success); color: white; } .toast.error { background: var(--danger); color: white; }
-
-#loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-main); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; color: var(--primary-dark); }
-.spinner { width: 60px; height: 60px; border: 6px solid var(--secondary); border-top: 6px solid var(--primary-dark); border-radius: 50%; animation: spin 1s linear infinite; }
 
 .main-header { background: var(--white); padding: 22px 40px; box-shadow: var(--shadow-sm); display: flex; justify-content: space-between; align-items: center; border-radius: 0 0 32px 32px; margin-bottom: 25px; border: 1px solid var(--border-color); flex-wrap: wrap; gap: 20px; }
 .header-left { display: flex; align-items: center; gap: 16px; } 
@@ -47,7 +43,7 @@ body.privacy-on .money-blur:hover { filter: blur(0px); }
 #current-date { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; }
 .badge-pro { background: linear-gradient(135deg, #0284c7, #0369a1); color: white; font-size: 0.65rem; padding: 4px 10px; border-radius: 8px; font-weight: 800; }
 
-.container { max-width: 1200px; margin: 0 auto; padding: 0 20px 50px 20px; display: none; }
+.container { max-width: 1200px; margin: 0 auto; padding: 0 20px 50px 20px; }
 .card { background: var(--white); border-radius: 24px; box-shadow: var(--shadow-sm); padding: 28px; border: 1px solid var(--border-color); }
 
 .announcement-card { display: flex; align-items: center; gap: 16px; padding: 18px 24px; background: linear-gradient(135deg, #e0f2fe, #f0f7ff); border: 1px solid #bae6fd; margin-bottom: 20px; }

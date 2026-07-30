@@ -1,6 +1,6 @@
 // Konfigurasi Supabase Client CDN
 const SUPABASE_URL = 'https://dyisevuroujenyqhhwmu.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR5aXNldnVyb3VqZW55cWhod211Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzOTgyNTQsImV4cCI6MjEwMDk3NDI1NH0.IGn1ExMUo-zpKqlLULskB2TftHpv5AOmoYIuiVzEvvs';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR5aXNldnVyb3VqZW55cWhod211Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzOTgyNS4sImV4cCI6MjEwMDk3NDI1NH0.IGn1ExMUo-zpKqlLULskB2TftHpv5AOmoYIuiVzEvvs';
 
 // Load Supabase Script secara dinamis jika belum ada
 if (!window.supabase) {
@@ -78,6 +78,13 @@ function getCurrentIsoWeek() {
     return getIsoWeek(nowWIB);
 }
 
+// Helper Hitung Total Kas Siswa pada Minggu Tertentu
+function getTotalKasMingguIni(absen, week) {
+    return kasData
+        .filter(k => Number(k.absen) === Number(absen) && k.minggu === week)
+        .reduce((sum, k) => sum + (Number(k.nominal) || 0), 0);
+}
+
 function updateNavAuthButton() {
     const btnText = document.getElementById('nav-auth-text');
     if(!btnText) return;
@@ -139,12 +146,10 @@ async function initAppFromSupabase() {
     try {
         let resSiswa = await window._supabaseClient.from('siswa').select('*');
         if (resSiswa.error) {
-            console.warn("Error load siswa dari supabase, menggunakan default:", resSiswa.error.message);
             siswaData = defaultSiswaData;
         } else if (resSiswa.data && resSiswa.data.length > 0) {
             siswaData = resSiswa.data;
         } else {
-            // Jika tabel kosong di database, otomatis masukkan default 39 siswa ke supabase
             siswaData = defaultSiswaData;
             for (let s of defaultSiswaData) {
                 await window._supabaseClient.from('siswa').upsert(s);
@@ -161,7 +166,6 @@ async function initAppFromSupabase() {
         if (resExp.data) pengeluaranData = resExp.data;
 
     } catch (err) {
-        console.warn("Gagal terhubung ke tabel Supabase, menggunakan data lokal:", err);
         siswaData = defaultSiswaData;
     }
 
@@ -550,7 +554,8 @@ function hitungPatungan() {
 function startGiveawaySpin() {
     let currentWeek = getCurrentIsoWeek();
     let lunasMingguIniSiswa = siswaData.filter(s => {
-        return kasData.some(k => Number(k.absen) === Number(s.absen) && k.minggu === currentWeek && Number(k.nominal) > 0);
+        let totalKas = getTotalKasMingguIni(s.absen, currentWeek);
+        return totalKas >= 3000;
     });
 
     let statusBox = document.getElementById('giveaway-status-box');
@@ -558,7 +563,7 @@ function startGiveawaySpin() {
     let btnSpin = document.getElementById('btn-spin');
 
     if(lunasMingguIniSiswa.length === 0) {
-        alert('Belum ada siswa yang lunas uang kas minggu ini untuk di-spin!');
+        alert('Belum ada siswa yang lunas uang kas minggu ini (minimal Rp 3.000) untuk di-spin!');
         return;
     }
 
@@ -633,8 +638,8 @@ function updateDashboardMetrics() {
     });
 
     siswaData.forEach(s => {
-        let sudahBayarMingguIni = kasData.some(k => Number(k.absen) === Number(s.absen) && k.minggu === currentWeek && Number(k.nominal) > 0);
-        if(!sudahBayarMingguIni) countBelumMingguIni++;
+        let totalKas = getTotalKasMingguIni(s.absen, currentWeek);
+        if(totalKas < 3000) countBelumMingguIni++;
     });
 
     let totalPengeluaran = pengeluaranData.reduce((sum, item) => sum + (Number(item.nominal) || 0), 0);
@@ -659,8 +664,8 @@ function loadAdminStatistics() {
     let currentWeek = getCurrentIsoWeek();
     let countBelum = 0;
     siswaData.forEach(s => {
-        let lunas = kasData.some(k => Number(k.absen) === Number(s.absen) && k.minggu === currentWeek && Number(k.nominal) > 0);
-        if(!lunas) countBelum++;
+        let totalKas = getTotalKasMingguIni(s.absen, currentWeek);
+        if(totalKas < 3000) countBelum++;
     });
 
     let elKasCount = document.getElementById('admin-stat-kas-count');
@@ -713,8 +718,8 @@ function loadDataKas() {
     let html = '';
 
     siswaData.forEach((s) => {
-        let transaksiMingguIni = kasData.find(k => Number(k.absen) === Number(s.absen) && k.minggu === currentWeek && Number(k.nominal) > 0);
-        let isLunas = Boolean(transaksiMingguIni);
+        let totalKasMingguIni = getTotalKasMingguIni(s.absen, currentWeek);
+        let isLunas = totalKasMingguIni >= 3000;
 
         let totalSiswaKontribusi = 0;
         kasData.forEach(k => { if(Number(k.absen) === Number(s.absen)) totalSiswaKontribusi += Number(k.nominal) || 0; });
@@ -725,12 +730,18 @@ function loadDataKas() {
             ? '<span class="bg-emerald-50 text-emerald-600 border border-emerald-200 px-2.5 py-1 rounded-md font-semibold text-[10px]">Lunas Minggu Ini</span>' 
             : '<span class="bg-amber-50 text-amber-600 border border-amber-200 px-2.5 py-1 rounded-md font-semibold text-[10px]">Belum Bayar</span>';
 
-        let metodeBadge = isLunas && transaksiMingguIni.metode === 'Digital' 
+        let lastMetode = '';
+        let matchedKasList = kasData.filter(k => Number(k.absen) === Number(s.absen) && k.minggu === currentWeek);
+        if(matchedKasList.length > 0) {
+            lastMetode = matchedKasList[matchedKasList.length - 1].metode;
+        }
+
+        let metodeBadge = isLunas && lastMetode === 'Digital' 
             ? '<span class="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded text-[10px] font-semibold">💳 Digital</span>' 
             : (isLunas ? '<span class="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[10px] font-semibold">💵 Cash</span>' : '-');
 
         let avatar = getAvatarUrl(s.nama);
-        let nominalKas = isLunas ? `Rp ${Number(transaksiMingguIni.nominal).toLocaleString('id-ID')}` : 'Rp 0';
+        let nominalKas = totalKasMingguIni > 0 ? `Rp ${totalKasMingguIni.toLocaleString('id-ID')}` : 'Rp 0';
 
         html += `
             <tr class="hover:bg-slate-50/80 transition-all">

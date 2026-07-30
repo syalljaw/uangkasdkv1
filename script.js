@@ -49,6 +49,7 @@ let defaultSiswaData = [
     { id: "sis_39", absen: 39, nama: "ZULFHAN BAIHAQI GUNAWAN" }
 ];
 
+// Ambil data dari LocalStorage browser
 let siswaData = JSON.parse(localStorage.getItem('kas_dkv1_siswa')) || defaultSiswaData;
 let kasData = JSON.parse(localStorage.getItem('kas_dkv1_kas')) || [];
 let iuranData = JSON.parse(localStorage.getItem('kas_dkv1_iuran')) || [];

@@ -1,6 +1,6 @@
 // Konfigurasi Supabase
 const SUPABASE_URL = 'https://dyisevuroujenyqhhwmu.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR5aXNldnVyb3VqZW55cWhod211Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzOTgyNS4sImV4cCI6MjEwMDk3NDI1NH0.IGn1ExMUo-zpKqlLULskB2TftHpv5AOmoYIuiVzEvvs';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR5aXNldnVyb3VqZW55cWhod211Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzOTgyNTQsImV4cCI6MjEwMDk3NDI1NH0.IGn1ExMUo-zpKqlLULskB2TftHpv5AOmoYIuiVzEvvs';
 
 // Inisialisasi Klien Supabase secara langsung & aman
 const _supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);

@@ -1,17 +1,10 @@
-// Konfigurasi Supabase Client CDN
+// Konfigurasi Supabase
 const SUPABASE_URL = 'https://dyisevuroujenyqhhwmu.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR5aXNldnVyb3VqZW55cWhod211Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzOTgyNS4sImV4cCI6MjEwMDk3NDI1NH0.IGn1ExMUo-zpKqlLULskB2TftHpv5AOmoYIuiVzEvvs';
 
-// Load Supabase Script secara dinamis jika belum ada
-if (!window.supabase) {
-    let script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-    script.onload = () => {
-        window._supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        initAppFromSupabase();
-    };
-    document.head.appendChild(script);
-}
+// Inisialisasi Klien Supabase secara langsung & aman
+const _supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+window._supabaseClient = _supabaseClient;
 
 // Default Data 39 Siswa XI DKV 1
 let defaultSiswaData = [
@@ -63,7 +56,6 @@ let pengeluaranData = [];
 
 let isAdminLoggedIn = localStorage.getItem('kas_dkv1_admin_logged') === 'true';
 
-// Helper Mendapatkan Nomor Minggu Tahun Ini (ISO Week Number)
 function getIsoWeek(date) {
     let d = new Date(date.getTime());
     d.setHours(0, 0, 0, 0);
@@ -78,7 +70,6 @@ function getCurrentIsoWeek() {
     return getIsoWeek(nowWIB);
 }
 
-// Helper Hitung Total Kas Siswa pada Minggu Tertentu
 function getTotalKasMingguIni(absen, week) {
     return kasData
         .filter(k => Number(k.absen) === Number(absen) && k.minggu === week)
@@ -92,11 +83,8 @@ function updateNavAuthButton() {
 }
 
 function handleNavAuthClick() {
-    if(isAdminLoggedIn) {
-        logoutAdmin();
-    } else {
-        openLoginModal();
-    }
+    if(isAdminLoggedIn) logoutAdmin();
+    else openLoginModal();
 }
 
 function getAvatarUrl(nama) {
@@ -110,13 +98,9 @@ function sortDataByAbsen() {
 }
 
 function getUserTitle(totalNominal) {
-    if (totalNominal >= 50000) {
-        return { text: '👑 Enterprise Sultan', class: 'bg-purple-50 text-purple-700 border-purple-200' };
-    } else if (totalNominal > 0) {
-        return { text: '⚡ Warga Teladan', class: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-    } else {
-        return { text: '⚠️ Belum Ada Kontribusi', class: 'bg-amber-50 text-amber-700 border-amber-200' };
-    }
+    if (totalNominal >= 50000) return { text: '👑 Enterprise Sultan', class: 'bg-purple-50 text-purple-700 border-purple-200' };
+    else if (totalNominal > 0) return { text: '⚡ Warga Teladan', class: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    else return { text: '⚠️ Belum Ada Kontribusi', class: 'bg-amber-50 text-amber-700 border-amber-200' };
 }
 
 function updateWIBClock() {
@@ -136,43 +120,32 @@ function updateWIBClock() {
     if(labelMinggu) labelMinggu.innerText = `Periode: ${getCurrentIsoWeek()}`;
 }
 
-// Sinkronisasi & Ambil Data dari Supabase Database
 async function initAppFromSupabase() {
-    if (!window._supabaseClient) {
-        siswaData = defaultSiswaData;
-        proceedAppInit();
-        return;
-    }
     try {
-        let resSiswa = await window._supabaseClient.from('siswa').select('*');
-        if (resSiswa.error) {
-            siswaData = defaultSiswaData;
-        } else if (resSiswa.data && resSiswa.data.length > 0) {
+        let resSiswa = await _supabaseClient.from('siswa').select('*');
+        if (!resSiswa.error && resSiswa.data && resSiswa.data.length > 0) {
             siswaData = resSiswa.data;
         } else {
             siswaData = defaultSiswaData;
             for (let s of defaultSiswaData) {
-                await window._supabaseClient.from('siswa').upsert(s);
+                await _supabaseClient.from('siswa').upsert(s);
             }
         }
 
-        let resKas = await window._supabaseClient.from('kas').select('*');
+        let resKas = await _supabaseClient.from('kas').select('*');
         if (resKas.data) kasData = resKas.data;
 
-        let resIuran = await window._supabaseClient.from('iuran').select('*');
+        let resIuran = await _supabaseClient.from('iuran').select('*');
         if (resIuran.data) iuranData = resIuran.data;
 
-        let resExp = await window._supabaseClient.from('pengeluaran').select('*');
+        let resExp = await _supabaseClient.from('pengeluaran').select('*');
         if (resExp.data) pengeluaranData = resExp.data;
 
     } catch (err) {
+        console.warn("Menggunakan data lokal:", err);
         siswaData = defaultSiswaData;
     }
 
-    proceedAppInit();
-}
-
-function proceedAppInit() {
     updateNavAuthButton();
     populateSiswaDropdown();
     renderSiswaAdminList();
@@ -184,11 +157,9 @@ function proceedAppInit() {
     checkAndProcessAutoMonthlyArchive();
 }
 
-// Arsip Otomatis Bulanan
 function checkAndProcessAutoMonthlyArchive() {
     let nowWIB = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
     let currentYearMonth = `${nowWIB.getFullYear()}-${String(nowWIB.getMonth() + 1).padStart(2, '0')}`;
-    
     let archivedMonths = JSON.parse(localStorage.getItem('kas_dkv1_archives')) || {};
     let allMonthsSet = new Set();
 
@@ -196,23 +167,18 @@ function checkAndProcessAutoMonthlyArchive() {
     iuranData.forEach(item => { if(item.tanggal && item.tanggal.length >= 7) allMonthsSet.add(item.tanggal.substring(0, 7)); });
     pengeluaranData.forEach(item => { if(item.tanggal && item.tanggal.length >= 7) allMonthsSet.add(item.tanggal.substring(0, 7)); });
 
-    Object.keys(archivedMonths).forEach(ym => {
-        if(!allMonthsSet.has(ym)) delete archivedMonths[ym];
-    });
+    Object.keys(archivedMonths).forEach(ym => { if(!allMonthsSet.has(ym)) delete archivedMonths[ym]; });
 
     allMonthsSet.forEach(ym => {
         if(ym < currentYearMonth) {
             let [y, m] = ym.split('-');
             let monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
             let labelBulan = `${monthNames[parseInt(m)-1]} ${y}`;
-
             let tPemasukan = 0;
             kasData.forEach(k => { if(k.tanggal && k.tanggal.startsWith(ym)) tPemasukan += Number(k.nominal) || 0; });
             iuranData.forEach(i => { if(i.tanggal && i.tanggal.startsWith(ym)) tPemasukan += Number(i.nominal) || 0; });
-
             let tPengeluaran = 0;
             pengeluaranData.forEach(e => { if(e.tanggal && e.tanggal.startsWith(ym)) tPengeluaran += Number(e.nominal) || 0; });
-
             archivedMonths[ym] = { periode: labelBulan, pemasukan: tPemasukan, pengeluaran: tPengeluaran, saldo: tPemasukan - tPengeluaran };
         }
     });
@@ -239,7 +205,6 @@ function renderRekapTable() {
     pengeluaranData.forEach(e => { if(e.tanggal && e.tanggal.startsWith(currentYM)) curPengeluaran += Number(e.nominal) || 0; });
 
     let allKeys = Object.keys(archivedMonths).sort().reverse();
-    
     let html = `
         <tr onclick="openRekapModal('${currentYM}', '${currentLabel}')" class="bg-blue-50/40 font-semibold hover:bg-blue-100/50 transition-all cursor-pointer">
             <td class="py-3.5 px-4 text-slate-900">${currentLabel} 🔍</td>
@@ -260,7 +225,6 @@ function renderRekapTable() {
             </tr>
         `;
     });
-
     tbody.innerHTML = html;
 }
 
@@ -269,7 +233,6 @@ function openRekapModal(ym, titleLabel) {
     const container = document.getElementById('rekap-modal-container');
     const titleEl = document.getElementById('rekap-modal-title');
     const contentEl = document.getElementById('rekap-modal-content');
-
     titleEl.innerText = `Rincian Arsip: ${titleLabel}`;
 
     let matchedKas = kasData.filter(item => item.tanggal && item.tanggal.startsWith(ym) && Number(item.nominal) > 0);
@@ -306,10 +269,7 @@ function openRekapModal(ym, titleLabel) {
 
     contentEl.innerHTML = html;
     modal.classList.remove('hidden');
-    setTimeout(() => {
-        container.classList.remove('scale-95', 'opacity-0');
-        container.classList.add('scale-100', 'opacity-100');
-    }, 10);
+    setTimeout(() => { container.classList.remove('scale-95', 'opacity-0'); container.classList.add('scale-100', 'opacity-100'); }, 10);
 }
 
 function closeRekapModal() {
@@ -338,7 +298,6 @@ function renderCalendar() {
     const monthSelect = document.getElementById('cal-month');
     const yearSelect = document.getElementById('cal-year');
     const gridEl = document.getElementById('calendar-grid');
-
     if(!monthSelect || !yearSelect || !gridEl) return;
 
     let month = parseInt(monthSelect.value);
@@ -362,7 +321,6 @@ function renderCalendar() {
 
         let hasIncome = kasData.some(d => d.tanggal === dateStr && Number(d.nominal) > 0) || iuranData.some(i => i.tanggal === dateStr && Number(i.nominal) > 0);
         let hasExpense = pengeluaranData.some(e => e.tanggal === dateStr);
-
         let indicatorDot = (hasIncome || hasExpense) ? `<span class="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 bg-accent rounded-full"></span>` : '';
         let baseClass = isToday ? 'bg-accent text-white font-bold rounded-xl shadow-sm' : 'hover:bg-blue-50 text-slate-700 rounded-xl py-1.5 border border-transparent hover:border-blue-200 cursor-pointer';
 
@@ -376,7 +334,6 @@ function openCalendarModal(dateStr) {
     const container = document.getElementById('cal-modal-container');
     const titleEl = document.getElementById('cal-modal-title');
     const contentEl = document.getElementById('cal-modal-content');
-
     let [y, m, d] = dateStr.split('-');
     titleEl.innerText = `Audit Tanggal: ${d} / ${m} / ${y}`;
 
@@ -414,10 +371,7 @@ function openCalendarModal(dateStr) {
 
     contentEl.innerHTML = html;
     modal.classList.remove('hidden');
-    setTimeout(() => {
-        container.classList.remove('scale-95', 'opacity-0');
-        container.classList.add('scale-100', 'opacity-100');
-    }, 10);
+    setTimeout(() => { container.classList.remove('scale-95', 'opacity-0'); container.classList.add('scale-100', 'opacity-100'); }, 10);
 }
 
 function closeCalendarModal() {
@@ -432,19 +386,14 @@ function initCalendarDefault() {
     let nowWIB = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
     const monthSelect = document.getElementById('cal-month');
     const yearSelect = document.getElementById('cal-year');
-
     if(monthSelect) monthSelect.value = nowWIB.getMonth();
     if(yearSelect) yearSelect.value = nowWIB.getFullYear();
     renderCalendar();
 }
 
-// Manajemen Login & Sesi Admin (Username: syallofficial.id, Password: irsyal989511)
 function checkAdminAccess() {
-    if(isAdminLoggedIn) {
-        switchTab('admin');
-    } else {
-        openLoginModal();
-    }
+    if(isAdminLoggedIn) switchTab('admin');
+    else openLoginModal();
 }
 
 function openLoginModal() {
@@ -453,12 +402,8 @@ function openLoginModal() {
     document.getElementById('login-user').value = '';
     document.getElementById('login-pass').value = '';
     document.getElementById('login-error').classList.add('hidden');
-    
     modal.classList.remove('hidden');
-    setTimeout(() => {
-        container.classList.remove('scale-95', 'opacity-0');
-        container.classList.add('scale-100', 'opacity-100');
-    }, 10);
+    setTimeout(() => { container.classList.remove('scale-95', 'opacity-0'); container.classList.add('scale-100', 'opacity-100'); }, 10);
 }
 
 function closeLoginModal() {
@@ -473,7 +418,6 @@ function prosesLoginAdmin(e) {
     e.preventDefault();
     let u = document.getElementById('login-user').value.trim();
     let p = document.getElementById('login-pass').value.trim();
-
     if(u === 'syallofficial.id' && p === 'irsyal989511') {
         isAdminLoggedIn = true;
         localStorage.setItem('kas_dkv1_admin_logged', 'true');
@@ -510,10 +454,7 @@ function switchTab(tab) {
         renderCalendar();
         checkAndProcessAutoMonthlyArchive();
     } else {
-        if(!isAdminLoggedIn) {
-            openLoginModal();
-            return;
-        }
+        if(!isAdminLoggedIn) { openLoginModal(); return; }
         homeSec.classList.add('hidden');
         adminSec.classList.remove('hidden');
         btnAdmin.className = "px-5 py-2 rounded-lg font-semibold text-xs transition-all bg-accent text-white shadow-sm";
@@ -530,15 +471,8 @@ function toggleNamaIuran() {
     let tipe = document.getElementById('input-tipe').value;
     let wrapper = document.getElementById('wrapper-nama-iuran');
     let inputNamaIuran = document.getElementById('input-nama-iuran');
-
-    if(tipe === 'Iuran') {
-        wrapper.classList.remove('hidden');
-        inputNamaIuran.required = true;
-    } else {
-        wrapper.classList.add('hidden');
-        inputNamaIuran.required = false;
-        inputNamaIuran.value = '';
-    }
+    if(tipe === 'Iuran') { wrapper.classList.remove('hidden'); inputNamaIuran.required = true; }
+    else { wrapper.classList.add('hidden'); inputNamaIuran.required = false; inputNamaIuran.value = ''; }
 }
 
 function hitungPatungan() {
@@ -546,26 +480,18 @@ function hitungPatungan() {
     let siswa = Number(document.getElementById('calc-siswa').value) || (siswaData.length || 39);
     let hasil = target / siswa;
     let hasilBulat = Math.ceil(hasil / 1000) * 1000;
-
     document.getElementById('calc-hasil').innerText = `Rp ${Math.round(hasil).toLocaleString('id-ID')}`;
     document.getElementById('calc-hasil-bulat').innerText = `Rp ${hasilBulat.toLocaleString('id-ID')}`;
 }
 
 function startGiveawaySpin() {
     let currentWeek = getCurrentIsoWeek();
-    let lunasMingguIniSiswa = siswaData.filter(s => {
-        let totalKas = getTotalKasMingguIni(s.absen, currentWeek);
-        return totalKas >= 3000;
-    });
-
+    let lunasMingguIniSiswa = siswaData.filter(s => getTotalKasMingguIni(s.absen, currentWeek) >= 3000);
     let statusBox = document.getElementById('giveaway-status-box');
     let winnerBox = document.getElementById('giveaway-winner-name');
     let btnSpin = document.getElementById('btn-spin');
 
-    if(lunasMingguIniSiswa.length === 0) {
-        alert('Belum ada siswa yang lunas uang kas minggu ini (minimal Rp 3.000) untuk di-spin!');
-        return;
-    }
+    if(lunasMingguIniSiswa.length === 0) { alert('Belum ada siswa yang lunas uang kas minggu ini (minimal Rp 3.000) untuk di-spin!'); return; }
 
     btnSpin.disabled = true;
     btnSpin.classList.add('opacity-50', 'cursor-not-allowed');
@@ -576,7 +502,6 @@ function startGiveawaySpin() {
         let randomIndex = Math.floor(Math.random() * lunasMingguIniSiswa.length);
         winnerBox.innerText = lunasMingguIniSiswa[randomIndex].nama;
         counter++;
-
         if(counter > 15) {
             clearInterval(spinInterval);
             let finalWinner = lunasMingguIniSiswa[Math.floor(Math.random() * lunasMingguIniSiswa.length)];
@@ -591,114 +516,66 @@ function startGiveawaySpin() {
 function renderRanking() {
     let rankingEl = document.getElementById('ranking-list');
     if(!rankingEl) return;
-    
     let kontribusiMap = {};
-    kasData.forEach(item => {
-        if(Number(item.nominal) > 0) kontribusiMap[item.nama] = (kontribusiMap[item.nama] || 0) + (Number(item.nominal) || 0);
-    });
-    iuranData.forEach(item => {
-        if(Number(item.nominal) > 0) kontribusiMap[item.nama] = (kontribusiMap[item.nama] || 0) + (Number(item.nominal) || 0);
-    });
+    kasData.forEach(item => { if(Number(item.nominal) > 0) kontribusiMap[item.nama] = (kontribusiMap[item.nama] || 0) + (Number(item.nominal) || 0); });
+    iuranData.forEach(item => { if(Number(item.nominal) > 0) kontribusiMap[item.nama] = (kontribusiMap[item.nama] || 0) + (Number(item.nominal) || 0); });
 
     let sortedArray = Object.keys(kontribusiMap).map(nama => ({ nama, total: kontribusiMap[nama] }));
     sortedArray.sort((a, b) => b.total - a.total);
 
     let html = '';
-    if(sortedArray.length === 0) {
-        rankingEl.innerHTML = `<div class="text-center py-6 text-slate-400 font-medium text-xs">Belum ada data kontribusi</div>`;
-        return;
-    }
+    if(sortedArray.length === 0) { rankingEl.innerHTML = `<div class="text-center py-6 text-slate-400 font-medium text-xs">Belum ada data kontribusi</div>`; return; }
 
     sortedArray.slice(0, 5).forEach((item, index) => {
         let medalColor = index === 0 ? 'bg-amber-100 text-amber-700 border-amber-300' : index === 1 ? 'bg-slate-200 text-slate-700 border-slate-300' : index === 2 ? 'bg-amber-700/20 text-amber-900 border-amber-700/30' : 'bg-surface text-slate-600 border-bordercol';
         let rankBadge = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
-
         html += `<div class="flex items-center justify-between p-3 rounded-xl border border-bordercol bg-surface hover:bg-slate-100/60 transition-all"><div class="flex items-center gap-3"><span class="w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold border ${medalColor}">${rankBadge}</span><span class="text-xs font-semibold text-slate-900">${item.nama}</span></div><span class="text-xs font-bold text-accent">Rp ${Number(item.total).toLocaleString('id-ID')}</span></div>`;
     });
     rankingEl.innerHTML = html;
 }
 
 function updateDashboardMetrics() {
-    let totalPemasukan = 0;
-    let totalCash = 0;
-    let totalDigital = 0;
+    let totalPemasukan = 0, totalCash = 0, totalDigital = 0;
     let currentWeek = getCurrentIsoWeek();
     let countBelumMingguIni = 0;
     
-    kasData.forEach(item => {
-        let nominal = Number(item.nominal) || 0;
-        totalPemasukan += nominal;
-        if(item.metode === 'Digital') totalDigital += nominal; else totalCash += nominal;
-    });
-
-    iuranData.forEach(item => {
-        let nominal = Number(item.nominal) || 0;
-        totalPemasukan += nominal;
-        if(item.metode === 'Digital') totalDigital += nominal; else totalCash += nominal;
-    });
-
-    siswaData.forEach(s => {
-        let totalKas = getTotalKasMingguIni(s.absen, currentWeek);
-        if(totalKas < 3000) countBelumMingguIni++;
-    });
+    kasData.forEach(item => { let nominal = Number(item.nominal) || 0; totalPemasukan += nominal; if(item.metode === 'Digital') totalDigital += nominal; else totalCash += nominal; });
+    iuranData.forEach(item => { let nominal = Number(item.nominal) || 0; totalPemasukan += nominal; if(item.metode === 'Digital') totalDigital += nominal; else totalCash += nominal; });
+    siswaData.forEach(s => { if(getTotalKasMingguIni(s.absen, currentWeek) < 3000) countBelumMingguIni++; });
 
     let totalPengeluaran = pengeluaranData.reduce((sum, item) => sum + (Number(item.nominal) || 0), 0);
     let saldoBersih = totalPemasukan - totalPengeluaran;
 
-    let elPemasukan = document.getElementById('stat-total-pemasukan');
-    let elCash = document.getElementById('stat-total-cash');
-    let elDigital = document.getElementById('stat-total-digital');
-    let elPengeluaran = document.getElementById('stat-total-pengeluaran');
-    let elSaldo = document.getElementById('stat-saldo-bersih');
-    let elBelum = document.getElementById('stat-belum-bayar');
-
-    if(elPemasukan) elPemasukan.innerText = `Rp ${totalPemasukan.toLocaleString('id-ID')}`;
-    if(elCash) elCash.innerText = `Rp ${totalCash.toLocaleString('id-ID')}`;
-    if(elDigital) elDigital.innerText = `Rp ${totalDigital.toLocaleString('id-ID')}`;
-    if(elPengeluaran) elPengeluaran.innerText = `Rp ${totalPengeluaran.toLocaleString('id-ID')}`;
-    if(elSaldo) elSaldo.innerText = `Rp ${saldoBersih.toLocaleString('id-ID')}`;
-    if(elBelum) elBelum.innerText = `${countBelumMingguIni} Siswa`;
+    if(document.getElementById('stat-total-pemasukan')) document.getElementById('stat-total-pemasukan').innerText = `Rp ${totalPemasukan.toLocaleString('id-ID')}`;
+    if(document.getElementById('stat-total-cash')) document.getElementById('stat-total-cash').innerText = `Rp ${totalCash.toLocaleString('id-ID')}`;
+    if(document.getElementById('stat-total-digital')) document.getElementById('stat-total-digital').innerText = `Rp ${totalDigital.toLocaleString('id-ID')}`;
+    if(document.getElementById('stat-total-pengeluaran')) document.getElementById('stat-total-pengeluaran').innerText = `Rp ${totalPengeluaran.toLocaleString('id-ID')}`;
+    if(document.getElementById('stat-saldo-bersih')) document.getElementById('stat-saldo-bersih').innerText = `Rp ${saldoBersih.toLocaleString('id-ID')}`;
+    if(document.getElementById('stat-belum-bayar')) document.getElementById('stat-belum-bayar').innerText = `${countBelumMingguIni} Siswa`;
 }
 
 function loadAdminStatistics() {
     let currentWeek = getCurrentIsoWeek();
     let countBelum = 0;
-    siswaData.forEach(s => {
-        let totalKas = getTotalKasMingguIni(s.absen, currentWeek);
-        if(totalKas < 3000) countBelum++;
-    });
+    siswaData.forEach(s => { if(getTotalKasMingguIni(s.absen, currentWeek) < 3000) countBelum++; });
 
-    let elKasCount = document.getElementById('admin-stat-kas-count');
-    let elIuranCount = document.getElementById('admin-stat-iuran-count');
-    let elBelumCount = document.getElementById('admin-stat-belum-count');
-    let elExpTotal = document.getElementById('admin-stat-exp-total');
-
-    if(elKasCount) elKasCount.innerText = `${kasData.length} Entri`;
-    if(elIuranCount) elIuranCount.innerText = `${iuranData.length} Entri`;
-    if(elBelumCount) elBelumCount.innerText = `${countBelum} Siswa`;
-    if(elExpTotal) elExpTotal.innerText = `Rp ${pengeluaranData.reduce((s, i) => s + (Number(i.nominal)||0), 0).toLocaleString('id-ID')}`;
+    if(document.getElementById('admin-stat-kas-count')) document.getElementById('admin-stat-kas-count').innerText = `${kasData.length} Entri`;
+    if(document.getElementById('admin-stat-iuran-count')) document.getElementById('admin-stat-iuran-count').innerText = `${iuranData.length} Entri`;
+    if(document.getElementById('admin-stat-belum-count')) document.getElementById('admin-stat-belum-count').innerText = `${countBelum} Siswa`;
+    if(document.getElementById('admin-stat-exp-total')) document.getElementById('admin-stat-exp-total').innerText = `Rp ${pengeluaranData.reduce((s, i) => s + (Number(i.nominal)||0), 0).toLocaleString('id-ID')}`;
 }
 
-// Populate Dropdown Siswa di Form Input
 function populateSiswaDropdown() {
     const select = document.getElementById('input-siswa-select');
     if(!select) return;
-
     sortDataByAbsen();
     let html = `<option value="">-- Pilih Siswa Berdasarkan Absen --</option>`;
-    siswaData.forEach(s => {
-        html += `<option value="${s.absen}">Absen ${s.absen} - ${s.nama}</option>`;
-    });
+    siswaData.forEach(s => { html += `<option value="${s.absen}">Absen ${s.absen} - ${s.nama}</option>`; });
     select.innerHTML = html;
 }
 
-function onSelectSiswaChange() {
-    const select = document.getElementById('input-siswa-select');
-    let selectedAbsen = select.value;
-    if(!selectedAbsen) return;
-}
+function onSelectSiswaChange() {}
 
-// Load Tabel Kas Utama
 function loadDataKas() {
     sortDataByAbsen();
     updateDashboardMetrics();
@@ -708,11 +585,7 @@ function loadDataKas() {
     
     const tbody = document.getElementById('tabel-kas-body');
     if(!tbody) return;
-    
-    if(siswaData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-400 font-medium">Belum ada data siswa.</td></tr>`;
-        return;
-    }
+    if(siswaData.length === 0) { tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-400 font-medium">Belum ada data siswa.</td></tr>`; return; }
 
     let currentWeek = getCurrentIsoWeek();
     let html = '';
@@ -720,7 +593,6 @@ function loadDataKas() {
     siswaData.forEach((s) => {
         let totalKasMingguIni = getTotalKasMingguIni(s.absen, currentWeek);
         let isLunas = totalKasMingguIni >= 3000;
-
         let totalSiswaKontribusi = 0;
         kasData.forEach(k => { if(Number(k.absen) === Number(s.absen)) totalSiswaKontribusi += Number(k.nominal) || 0; });
         iuranData.forEach(i => { if(Number(i.absen) === Number(s.absen)) totalSiswaKontribusi += Number(i.nominal) || 0; });
@@ -732,9 +604,7 @@ function loadDataKas() {
 
         let lastMetode = '';
         let matchedKasList = kasData.filter(k => Number(k.absen) === Number(s.absen) && k.minggu === currentWeek);
-        if(matchedKasList.length > 0) {
-            lastMetode = matchedKasList[matchedKasList.length - 1].metode;
-        }
+        if(matchedKasList.length > 0) lastMetode = matchedKasList[matchedKasList.length - 1].metode;
 
         let metodeBadge = isLunas && lastMetode === 'Digital' 
             ? '<span class="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded text-[10px] font-semibold">💳 Digital</span>' 
@@ -767,17 +637,12 @@ function loadDataKas() {
 function loadDataIuran() {
     const tbody = document.getElementById('tabel-iuran-body');
     if(!tbody) return;
-
-    if(iuranData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400 font-medium">Belum ada data iuran khusus</td></tr>`;
-        return;
-    }
+    if(iuranData.length === 0) { tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400 font-medium">Belum ada data iuran khusus</td></tr>`; return; }
 
     let html = '';
     iuranData.forEach(item => {
         let metodeBadge = item.metode === 'Digital' ? '<span class="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-semibold">💳 Digital</span>' : '<span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-semibold">💵 Cash</span>';
         let iuranBadge = `<span class="bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-1 rounded-md text-xs font-semibold">${item.namaIuran || 'Iuran'}</span>`;
-
         html += `
             <tr class="hover:bg-slate-50/80 transition-all">
                 <td class="py-3.5 px-4 text-center font-bold text-slate-500">${item.absen || '-'}</td>
@@ -795,11 +660,7 @@ function loadDataIuran() {
 function loadDataPengeluaran() {
     const tbody = document.getElementById('tabel-pengeluaran-body');
     if(!tbody) return;
-
-    if(pengeluaranData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" class="text-center py-6 text-slate-400 font-medium">Belum ada catatan pengeluaran kelas</td></tr>`;
-        return;
-    }
+    if(pengeluaranData.length === 0) { tbody.innerHTML = `<tr><td colspan="3" class="text-center py-6 text-slate-400 font-medium">Belum ada catatan pengeluaran kelas</td></tr>`; return; }
 
     let html = '';
     pengeluaranData.forEach(item => {
@@ -814,28 +675,20 @@ function loadDataPengeluaran() {
     tbody.innerHTML = html;
 }
 
-// Render Admin List Siswa
 function renderSiswaAdminList() {
     sortDataByAbsen();
     const container = document.getElementById('list-siswa-admin');
     const countEl = document.getElementById('count-siswa');
     if(!container) return;
-
     if(countEl) countEl.innerText = siswaData.length;
-
-    if(siswaData.length === 0) {
-        container.innerHTML = `<div class="text-xs text-slate-400 italic">Belum ada siswa ditambahkan.</div>`;
-        return;
-    }
+    if(siswaData.length === 0) { container.innerHTML = `<div class="text-xs text-slate-400 italic">Belum ada siswa ditambahkan.</div>`; return; }
 
     let html = '';
     siswaData.forEach(s => {
         html += `
             <div class="flex items-center justify-between p-2 bg-surface rounded-lg border border-bordercol text-xs">
                 <div><span class="font-bold text-accent">Absen ${s.absen}:</span> <span class="font-semibold text-slate-800">${s.nama}</span></div>
-                <div class="space-x-1">
-                    <button onclick="hapusSiswa('${s.id}')" class="text-rose-600 hover:underline text-[10px] font-bold">Hapus</button>
-                </div>
+                <div class="space-x-1"><button onclick="hapusSiswa('${s.id}')" class="text-rose-600 hover:underline text-[10px] font-bold">Hapus</button></div>
             </div>
         `;
     });
@@ -847,11 +700,7 @@ function loadDataAdminKas() {
     loadAdminStatistics();
     const tbody = document.getElementById('tabel-admin-kas-body');
     if(!tbody) return;
-    
-    if(kasData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400 font-medium">Data kas kosong</td></tr>`;
-        return;
-    }
+    if(kasData.length === 0) { tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400 font-medium">Data kas kosong</td></tr>`; return; }
 
     let html = '';
     kasData.forEach(item => {
@@ -863,9 +712,7 @@ function loadDataAdminKas() {
                 <td class="py-3.5 px-4 font-semibold text-slate-900">Rp ${Number(item.nominal).toLocaleString('id-ID')}</td>
                 <td class="py-3.5 px-4 font-medium text-slate-700">${metodeBadge}</td>
                 <td class="py-3.5 px-4 text-slate-500">${item.tanggal} (${item.minggu})</td>
-                <td class="py-3.5 px-4 text-center space-x-2">
-                    <button onclick="hapusDataKas('${item.id}')" class="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all">Hapus</button>
-                </td>
+                <td class="py-3.5 px-4 text-center space-x-2"><button onclick="hapusDataKas('${item.id}')" class="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all">Hapus</button></td>
             </tr>
         `;
     });
@@ -877,17 +724,12 @@ function loadDataAdminIuran() {
     loadAdminStatistics();
     const tbody = document.getElementById('tabel-admin-iuran-body');
     if(!tbody) return;
-    
-    if(iuranData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400 font-medium">Data iuran khusus kosong</td></tr>`;
-        return;
-    }
+    if(iuranData.length === 0) { tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400 font-medium">Data iuran khusus kosong</td></tr>`; return; }
 
     let html = '';
     iuranData.forEach(item => {
         let iuranBadge = `<span class="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded text-xs font-semibold">${item.namaIuran}</span>`;
         let metodeBadge = item.metode === 'Digital' ? '💳 Digital' : '💵 Cash';
-
         html += `
             <tr class="hover:bg-slate-50/80 transition-all">
                 <td class="py-3.5 px-4 text-center font-bold text-slate-500">${item.absen || '-'}</td>
@@ -895,9 +737,7 @@ function loadDataAdminIuran() {
                 <td class="py-3.5 px-4">${iuranBadge}</td>
                 <td class="py-3.5 px-4 font-semibold text-slate-900">Rp ${Number(item.nominal).toLocaleString('id-ID')}</td>
                 <td class="py-3.5 px-4 font-medium text-slate-700">${metodeBadge}</td>
-                <td class="py-3.5 px-4 text-center space-x-2">
-                    <button onclick="hapusDataIuran('${item.id}')" class="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all">Hapus</button>
-                </td>
+                <td class="py-3.5 px-4 text-center space-x-2"><button onclick="hapusDataIuran('${item.id}')" class="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all">Hapus</button></td>
             </tr>
         `;
     });
@@ -908,11 +748,7 @@ function loadDataAdminPengeluaran() {
     loadAdminStatistics();
     const tbody = document.getElementById('tabel-admin-pengeluaran-body');
     if(!tbody) return;
-
-    if(pengeluaranData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-slate-400 font-medium">Belum ada pengeluaran</td></tr>`;
-        return;
-    }
+    if(pengeluaranData.length === 0) { tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-slate-400 font-medium">Belum ada pengeluaran</td></tr>`; return; }
 
     let html = '';
     pengeluaranData.forEach(item => {
@@ -921,9 +757,7 @@ function loadDataAdminPengeluaran() {
                 <td class="py-3.5 px-4 font-semibold text-slate-900">${item.keterangan}</td>
                 <td class="py-3.5 px-4 font-bold text-rose-600">Rp ${Number(item.nominal).toLocaleString('id-ID')}</td>
                 <td class="py-3.5 px-4 text-slate-500">${item.tanggal || '-'}</td>
-                <td class="py-3.5 px-4 text-center">
-                    <button onclick="hapusPengeluaran('${item.id}')" class="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all">Hapus</button>
-                </td>
+                <td class="py-3.5 px-4 text-center"><button onclick="hapusPengeluaran('${item.id}')" class="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all">Hapus</button></td>
             </tr>
         `;
     });
@@ -932,27 +766,14 @@ function loadDataAdminPengeluaran() {
 
 async function simpanDataSiswa(e) {
     e.preventDefault();
-    if (!window._supabaseClient) {
-        alert('Koneksi Supabase belum siap!');
-        return;
-    }
-
     let absen = Number(document.getElementById('siswa-absen').value);
     let nama = document.getElementById('siswa-nama').value.trim();
-
     let payload = { id: 'sis_' + Date.now(), absen, nama };
-    let { error } = await window._supabaseClient.from('siswa').insert([payload]);
-
-    if (error) {
-        console.error("Gagal simpan siswa:", error);
-        alert("Gagal menyimpan ke Supabase: " + error.message);
-        return;
-    }
-
+    let { error } = await _supabaseClient.from('siswa').insert([payload]);
+    if (error) { alert("Gagal menyimpan ke Supabase: " + error.message); return; }
     siswaData.push(payload);
     document.getElementById('siswa-absen').value = '';
     document.getElementById('siswa-nama').value = '';
-    
     populateSiswaDropdown();
     renderSiswaAdminList();
     alert('Siswa berhasil ditambahkan!');
@@ -960,11 +781,8 @@ async function simpanDataSiswa(e) {
 
 async function hapusSiswa(id) {
     if(confirm('Hapus siswa ini dari daftar?')) {
-        let { error } = await window._supabaseClient.from('siswa').delete().eq('id', id);
-        if (error) {
-            alert("Gagal menghapus: " + error.message);
-            return;
-        }
+        let { error } = await _supabaseClient.from('siswa').delete().eq('id', id);
+        if (error) { alert("Gagal menghapus: " + error.message); return; }
         siswaData = siswaData.filter(s => String(s.id) !== String(id));
         populateSiswaDropdown();
         renderSiswaAdminList();
@@ -973,47 +791,30 @@ async function hapusSiswa(id) {
 
 async function simpanDataPemasukan(e) {
     e.preventDefault();
-    if (!window._supabaseClient) {
-        alert('Koneksi Supabase belum siap!');
-        return;
-    }
-
     const selectSiswa = document.getElementById('input-siswa-select').value;
-    if(!selectSiswa) {
-        alert('Silakan pilih siswa terlebih dahulu!');
-        return;
-    }
+    if(!selectSiswa) { alert('Silakan pilih siswa terlebih dahulu!'); return; }
 
     let siswaObj = siswaData.find(s => Number(s.absen) === Number(selectSiswa));
     const absen = siswaObj.absen;
     const nama = siswaObj.nama;
-
     const tipe = document.getElementById('input-tipe').value;
     const namaIuran = document.getElementById('input-nama-iuran').value;
     const nominal = Number(document.getElementById('input-nominal').value);
     const metode = document.getElementById('input-metode').value;
     const tanggal = document.getElementById('input-tanggal').value;
-    
-    let tanggalObj = new Date(tanggal);
-    let mingguTransaksi = getIsoWeek(tanggalObj);
+    let mingguTransaksi = getIsoWeek(new Date(tanggal));
 
     if (tipe === 'Kas') {
         let payload = { id: Date.now().toString(), absen, nama, nominal, metode, tanggal, minggu: mingguTransaksi };
-        let { error } = await window._supabaseClient.from('kas').insert([payload]);
-        if (error) {
-            alert("Gagal simpan kas ke Supabase: " + error.message);
-            return;
-        }
+        let { error } = await _supabaseClient.from('kas').insert([payload]);
+        if (error) { alert("Gagal simpan kas: " + error.message); return; }
         kasData.push(payload);
         alert('Data uang kas berhasil disimpan.');
         loadDataAdminKas();
     } else {
         let payload = { id: 'iur_' + Date.now(), absen, nama, namaIuran, nominal, metode, tanggal };
-        let { error } = await window._supabaseClient.from('iuran').insert([payload]);
-        if (error) {
-            alert("Gagal simpan iuran ke Supabase: " + error.message);
-            return;
-        }
+        let { error } = await _supabaseClient.from('iuran').insert([payload]);
+        if (error) { alert("Gagal simpan iuran: " + error.message); return; }
         iuranData.push(payload);
         alert('Data iuran khusus berhasil disimpan.');
         loadDataAdminIuran();
@@ -1029,15 +830,10 @@ async function simpanDataPengeluaran(e) {
     const keterangan = document.getElementById('exp-keterangan').value;
     const nominal = Number(document.getElementById('exp-nominal').value);
     const tanggal = document.getElementById('exp-tanggal').value;
-
     let payload = { id: 'e_' + Date.now(), keterangan, nominal, tanggal };
-    let { error } = await window._supabaseClient.from('pengeluaran').insert([payload]);
-    if (error) {
-        alert("Gagal simpan pengeluaran: " + error.message);
-        return;
-    }
+    let { error } = await _supabaseClient.from('pengeluaran').insert([payload]);
+    if (error) { alert("Gagal simpan pengeluaran: " + error.message); return; }
     pengeluaranData.push(payload);
-
     document.getElementById('form-pengeluaran').reset();
     alert('Catatan pengeluaran berhasil disimpan.');
     loadDataAdminPengeluaran();
@@ -1047,7 +843,7 @@ async function simpanDataPengeluaran(e) {
 
 async function hapusDataKas(id) {
     if(confirm('Hapus transaksi kas ini?')) {
-        await window._supabaseClient.from('kas').delete().eq('id', id);
+        await _supabaseClient.from('kas').delete().eq('id', id);
         kasData = kasData.filter(item => String(item.id) !== String(id));
         loadDataAdminKas();
         loadAdminStatistics();
@@ -1056,7 +852,7 @@ async function hapusDataKas(id) {
 
 async function hapusDataIuran(id) {
     if(confirm('Hapus transaksi iuran khusus ini?')) {
-        await window._supabaseClient.from('iuran').delete().eq('id', id);
+        await _supabaseClient.from('iuran').delete().eq('id', id);
         iuranData = iuranData.filter(item => String(item.id) !== String(id));
         loadDataAdminIuran();
         loadAdminStatistics();
@@ -1065,7 +861,7 @@ async function hapusDataIuran(id) {
 
 async function hapusPengeluaran(id) {
     if(confirm('Hapus catatan pengeluaran ini?')) {
-        await window._supabaseClient.from('pengeluaran').delete().eq('id', id);
+        await _supabaseClient.from('pengeluaran').delete().eq('id', id);
         pengeluaranData = pengeluaranData.filter(item => String(item.id) !== String(id));
         loadDataAdminPengeluaran();
         loadAdminStatistics();
@@ -1088,4 +884,5 @@ window.onload = () => {
     updateWIBClock();
     setInterval(updateWIBClock, 1000);
     hitungPatungan();
+    initAppFromSupabase();
 };

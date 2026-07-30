@@ -1,866 +1,1080 @@
-// =======================================================
-// KASKELASKU ULTRA PRO MAX - SCRIPT (NO QRIS, NO MARKUP)
-// =======================================================
+// Konfigurasi Supabase Client CDN
+const SUPABASE_URL = 'https://dyisevuroujenyqhhwmu.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR5aXNldnVyb3VqZW55cWhod211Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzOTgyNTQsImV4cCI6MjEwMDk3NDI1NH0.IGn1ExMUo-zpKqlLULskB2TftHpv5AOmoYIuiVzEvvs';
 
-const SUPABASE_URL = 'https://xjkahrfgkbjvvwxspsux.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhqa2FocmZna2JqdnZ3eHNwc3V4Iiwicm9sZSI6ImFub24iOiJpYXQiOjE3ODQ5ODAyMDcsImV4cCI6MjEwMDU1NjIwN30.CMbZiIszCqlryp8G6h5sL6vH_JFX-Y-3wvyMSb_3SVU';
-let supabaseClient = null;
-let useCloud = false;
-
-try {
-    if (window.supabase && SUPABASE_URL && !SUPABASE_URL.includes('YOUR_SUPABASE_PROJECT_ID')) {
-        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        useCloud = true;
-    }
-} catch (e) { useCloud = false; }
-
-let dataSiswa = [];
-let dataPengeluaran = [];
-let dataAudit = [];
-let dataPemasukanLain = [];
-let pengumumanKelas = "Selamat datang di Kas Kelas XI DKV 1 Ultra Pro Max!";
-
-// Target default (tanpa markup dummy, dikembalikan ke 0)
-let classGoal = { title: "Target Proyek Kelas", target: 0 }; 
-
-let globalMonth = new Date().getMonth() + 1;
-let globalYear = new Date().getFullYear();
-let currentProfileId = null;
-
-async function loadData() {
-    if (useCloud) {
-        try {
-            let { data: siswaData } = await supabaseClient.from('siswa').select('*');
-            let { data: expData } = await supabaseClient.from('pengeluaran').select('*');
-            let { data: auditData } = await supabaseClient.from('audit_log').select('*');
-            let { data: lainData } = await supabaseClient.from('pemasukan_lain').select('*');
-            let { data: annData } = await supabaseClient.from('pengumuman').select('*').single();
-            if (siswaData) dataSiswa = siswaData; if (expData) dataPengeluaran = expData;
-            if (auditData) dataAudit = auditData; if (lainData) dataPemasukanLain = lainData;
-            if (annData && annData.pesan) pengumumanKelas = annData.pesan;
-        } catch(err) { useCloud = false; }
-    }
-    
-    try {
-        if (!dataSiswa || dataSiswa.length === 0) {
-            dataSiswa = JSON.parse(localStorage.getItem('XIDKV1_Siswa')) || [];
-        }
-    } catch (e) { dataSiswa = []; }
-
-    // Jika data benar-benar kosong
-    if (!dataSiswa || dataSiswa.length === 0) {
-        dataSiswa = [
-            { id: 1, nama: "Aditya Pratama", payments: [] },
-            { id: 2, nama: "Alya Zahra", payments: [] },
-            { id: 3, nama: "Bintang Saputra", payments: [] },
-            { id: 4, nama: "Cinta Kirana", payments: [] },
-            { id: 5, nama: "Dimas Anggara", payments: [] },
-            { id: 6, nama: "Fauzan Al-Ghifari", payments: [] },
-            { id: 7, nama: "Intan Permata", payments: [] },
-            { id: 8, nama: "M. Irsyal", payments: [] },
-            { id: 9, nama: "Naufal Ramadhan", payments: [] },
-            { id: 10, nama: "Siti Aisyah", payments: [] }
-        ];
-    }
-
-    // Urutkan data siswa otomatis sesuai abjad (seperti nomor absen)
-    dataSiswa.sort((a, b) => a.nama.localeCompare(b.nama, 'id', { sensitivity: 'base' }));
-
-    try { dataPengeluaran = JSON.parse(localStorage.getItem('XIDKV1_Exp')) || []; } catch(e) { dataPengeluaran = []; }
-    try { dataPemasukanLain = JSON.parse(localStorage.getItem('XIDKV1_Lain')) || []; } catch(e) { dataPemasukanLain = []; }
-    try { dataAudit = JSON.parse(localStorage.getItem('XIDKV1_Audit')) || []; } catch(e) { dataAudit = []; }
-    
-    pengumumanKelas = localStorage.getItem('XIDKV1_Ann') || pengumumanKelas;
-    
-    let savedGoal = localStorage.getItem('XIDKV1_Goal');
-    if(savedGoal) { try { classGoal = JSON.parse(savedGoal); } catch(e){} }
-
-    dataSiswa.forEach(s => {
-        if (s && Array.isArray(s.payments)) {
-            s.payments.forEach((p, idx) => {
-                if (p && !p.id) p.id = 'pay_' + Date.now() + '_' + idx;
-            });
-        }
-    });
+// Load Supabase Script secara dinamis jika belum ada
+if (!window.supabase) {
+    let script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    script.onload = () => {
+        window._supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        initAppFromSupabase();
+    };
+    document.head.appendChild(script);
 }
 
-async function saveData(key, data, table) {
-    if (key === 'XIDKV1_Siswa') {
-        data.sort((a, b) => a.nama.localeCompare(b.nama, 'id', { sensitivity: 'base' }));
-    }
-    localStorage.setItem(key, JSON.stringify(data));
-    if (useCloud && supabaseClient) {
-        try { 
-            for(let item of data) { await supabaseClient.from(table).upsert(item); }
-        } catch(e) {}
+// Default Data 39 Siswa XI DKV 1
+let defaultSiswaData = [
+    { id: "sis_1", absen: 1, nama: "AIRA HUMAIROO NUR ROCHMAN" },
+    { id: "sis_2", absen: 2, nama: "ALENA VEYRA PRAMUDITA" },
+    { id: "sis_3", absen: 3, nama: "ANDIKA NURUL KAMIL" },
+    { id: "sis_4", absen: 4, nama: "ANISA NURLITA RAHMA" },
+    { id: "sis_5", absen: 5, nama: "CHARISA RIVANI SALSABILA" },
+    { id: "sis_6", absen: 6, nama: "CHRISTIAN ADINATA SINAGA" },
+    { id: "sis_7", absen: 7, nama: "DHEA SUCI NUR RAMADAN" },
+    { id: "sis_8", absen: 8, nama: "DINARRA SYAFINA PUTRI" },
+    { id: "sis_9", absen: 9, nama: "FADLAN MAULANA MARDYAN" },
+    { id: "sis_10", absen: 10, nama: "FAIZIA NILA KHAIRUNNISA" },
+    { id: "sis_11", absen: 11, nama: "FATHIA MAULANI ADITRIYANTI" },
+    { id: "sis_12", absen: 12, nama: "HARSTA ASYIFA LAYALIA SHOLIHAH" },
+    { id: "sis_13", absen: 13, nama: "HASNA JASIM AQILAH" },
+    { id: "sis_14", absen: 14, nama: "HIBAR SANG FAJAR SYAHPUTRA" },
+    { id: "sis_15", absen: 15, nama: "IRSYAL FAIZ HAUZAN" },
+    { id: "sis_16", absen: 16, nama: "JESSICA OLIVIA" },
+    { id: "sis_17", absen: 17, nama: "LEVIA RESTI" },
+    { id: "sis_18", absen: 18, nama: "MARVEL MAPALIYE" },
+    { id: "sis_19", absen: 19, nama: "MAURA NATALI PUTRI" },
+    { id: "sis_20", absen: 20, nama: "MEISYA TRIAMANDA" },
+    { id: "sis_21", absen: 21, nama: "MOCHAMAD REYHAN HARDHIKA" },
+    { id: "sis_22", absen: 22, nama: "MUHAMAD YAFI AL GHOFARI" },
+    { id: "sis_23", absen: 23, nama: "MUHAMMAD RIDWAN KURNIADI" },
+    { id: "sis_24", absen: 24, nama: "NAJLAA DWI PUTRI ARDIANSYAH" },
+    { id: "sis_25", absen: 25, nama: "NAJMI DARIS DZAKWAN" },
+    { id: "sis_26", absen: 26, nama: "NAZWA NUR AZIZAH" },
+    { id: "sis_27", absen: 27, nama: "RAFA RIZA AKBAR" },
+    { id: "sis_28", absen: 28, nama: "RAFLI ZULFIKAR AKBAR" },
+    { id: "sis_29", absen: 29, nama: "REGISHA DEMI CINTYA" },
+    { id: "sis_30", absen: 30, nama: "RENDI KAMIL" },
+    { id: "sis_31", absen: 31, nama: "RESTA AULIANA" },
+    { id: "sis_32", absen: 32, nama: "RIZKI MAULANA AJIANTO" },
+    { id: "sis_33", absen: 33, nama: "RIZKY MAULANA" },
+    { id: "sis_34", absen: 34, nama: "SITI NAAILAH HASNAA HAAMIDAH" },
+    { id: "sis_35", absen: 35, nama: "VICKY NAUFAL RAJIBYAN" },
+    { id: "sis_36", absen: 36, nama: "WAHAD SHAHRUR HIDAYATULLOH" },
+    { id: "sis_37", absen: 37, nama: "WIDY YUNIAR AINUN" },
+    { id: "sis_38", absen: 38, nama: "YEN NABILA" },
+    { id: "sis_39", absen: 39, nama: "ZULFHAN BAIHAQI GUNAWAN" }
+];
+
+let siswaData = [];
+let kasData = [];
+let iuranData = [];
+let pengeluaranData = [];
+
+let isAdminLoggedIn = localStorage.getItem('kas_dkv1_admin_logged') === 'true';
+
+// Helper Mendapatkan Nomor Minggu Tahun Ini (ISO Week Number)
+function getIsoWeek(date) {
+    let d = new Date(date.getTime());
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+    let yearStart = new Date(d.getFullYear(), 0, 1);
+    let weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return `${d.getFullYear()}-W${weekNo}`;
+}
+
+function getCurrentIsoWeek() {
+    let nowWIB = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
+    return getIsoWeek(nowWIB);
+}
+
+function updateNavAuthButton() {
+    const btnText = document.getElementById('nav-auth-text');
+    if(!btnText) return;
+    btnText.innerText = isAdminLoggedIn ? 'Logout Admin' : 'Login Admin';
+}
+
+function handleNavAuthClick() {
+    if(isAdminLoggedIn) {
+        logoutAdmin();
+    } else {
+        openLoginModal();
     }
 }
 
-async function logAudit(action, detail) {
-    const logItem = { id: Date.now(), time: new Date().toLocaleString('id-ID'), action, detail };
-    dataAudit.unshift(logItem); localStorage.setItem('XIDKV1_Audit', JSON.stringify(dataAudit));
-    if (useCloud && supabaseClient) await supabaseClient.from('audit_log').insert([logItem]);
+function getAvatarUrl(nama) {
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(nama || 'User')}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
 }
 
-function showToast(msg, type='success') {
-    const t = document.createElement('div'); t.className = `toast ${type}`;
-    t.innerHTML = `<i data-lucide="${type==='success'?'circle-check':'circle-alert'}"></i> <span>${msg}</span>`;
-    document.getElementById('toast-container').appendChild(t); lucide.createIcons();
-    setTimeout(() => { t.style.opacity = '0'; setTimeout(()=>t.remove(), 300); }, 3000);
+function sortDataByAbsen() {
+    siswaData.sort((a, b) => Number(a.absen || 99) - Number(b.absen || 99));
+    kasData.sort((a, b) => Number(a.absen || 99) - Number(b.absen || 99));
+    iuranData.sort((a, b) => Number(a.absen || 99) - Number(b.absen || 99));
 }
 
-window.addEventListener('load', async () => {
-    const realTimeNow = new Date();
-    globalYear = realTimeNow.getFullYear();
-    globalMonth = realTimeNow.getMonth() + 1;
-    calDate = new Date(globalYear, globalMonth - 1, 1);
-
-    initTheme(); 
-    initMonthFilter(); 
-    await loadData();
-    
-    updateTime(); 
-    setInterval(updateTime, 1000);
-
-    const mainContent = document.getElementById('main-content');
-    if (mainContent) mainContent.style.display = 'block';
-    
-    const annText = document.getElementById('announcement-text');
-    if (annText) annText.innerText = pengumumanKelas;
-
-    renderAll(); 
-    renderCalendar(); 
-    lucide.createIcons(); 
-});
-
-function initTheme() {
-    const t = localStorage.getItem('XIDKV1_Theme') || 'light'; 
-    document.documentElement.setAttribute('data-theme', t);
-    const i = document.getElementById('theme-icon'); if(i) i.setAttribute('data-lucide', t==='dark'?'sun':'moon');
-}
-function toggleTheme() {
-    const n = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', n); localStorage.setItem('XIDKV1_Theme', n); 
-    initTheme(); lucide.createIcons();
-}
-function togglePrivacy() {
-    document.body.classList.toggle('privacy-on');
-    const isPriv = document.body.classList.contains('privacy-on');
-    document.getElementById('privacy-icon').setAttribute('data-lucide', isPriv ? 'eye' : 'eye-off'); lucide.createIcons();
+function getUserTitle(totalNominal) {
+    if (totalNominal >= 50000) {
+        return { text: '👑 Enterprise Sultan', class: 'bg-purple-50 text-purple-700 border-purple-200' };
+    } else if (totalNominal > 0) {
+        return { text: '⚡ Warga Teladan', class: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    } else {
+        return { text: '⚠️ Belum Ada Kontribusi', class: 'bg-amber-50 text-amber-700 border-amber-200' };
+    }
 }
 
-function formatRp(angka) { return 'Rp ' + Number(angka || 0).toLocaleString('id-ID'); }
-function generateAvatar(nama) { return `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(nama || 'user')}&backgroundColor=e0f2fe`; }
-
-function updateTime() {
+function updateWIBClock() {
     const now = new Date();
-    const dateEl = document.getElementById('current-date');
-    const timeEl = document.getElementById('current-time');
-    if (dateEl) {
-        dateEl.innerText = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    }
-    if (timeEl) {
-        timeEl.innerText = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')} WIB`;
-    }
-}
-
-let calDate = new Date();
-function renderCalendar() {
-    const monthYear = document.getElementById('month-year');
-    const calBody = document.getElementById('calendar-body');
-    if(!monthYear || !calBody) return;
-    const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-    const month = calDate.getMonth(); const year = calDate.getFullYear();
-    monthYear.innerText = `${months[month]} ${year}`;
-    const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
-    calBody.innerHTML = '';
-    for(let i = 0; i < firstDay; i++) calBody.innerHTML += `<div class="cal-day empty"></div>`;
-    const today = new Date();
-    for(let i = 1; i <= daysInMonth; i++) {
-        let isToday = (i === today.getDate() && month === today.getMonth() && year === today.getFullYear()) ? 'today' : '';
-        calBody.innerHTML += `<div class="cal-day ${isToday}">${i}</div>`;
-    }
-}
-
-function prevMonth() { 
-    calDate.setMonth(calDate.getMonth() - 1); 
-    globalYear = calDate.getFullYear(); globalMonth = calDate.getMonth() + 1;
-    syncMonthFilterSelect(); renderCalendar(); renderAll();
-}
-
-function nextMonth() { 
-    calDate.setMonth(calDate.getMonth() + 1); 
-    globalYear = calDate.getFullYear(); globalMonth = calDate.getMonth() + 1;
-    syncMonthFilterSelect(); renderCalendar(); renderAll();
-}
-
-function syncMonthFilterSelect() {
-    const sel = document.getElementById('global-month-filter');
-    if (sel) sel.value = `${globalYear}-${String(globalMonth).padStart(2,'0')}`;
-}
-
-function initMonthFilter() {
-    const sel = document.getElementById('global-month-filter'); 
-    if (!sel) return;
-    const y = new Date().getFullYear();
-    const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-    sel.innerHTML = '';
-    for(let i = y-1; i <= y+1; i++) {
-        for(let j=0; j<12; j++) {
-            let val = `${i}-${String(j+1).padStart(2,'0')}`; 
-            sel.innerHTML += `<option value="${val}" ${(i === globalYear && j + 1 === globalMonth) ? 'selected' : ''}>${months[j]} ${i}</option>`;
-        }
-    }
-}
-
-function updateGlobalFilter() { 
-    const filterEl = document.getElementById('global-month-filter');
-    if (!filterEl) return;
-    const v = filterEl.value.split('-'); 
-    if (v.length === 2) {
-        globalYear = parseInt(v[0]); globalMonth = parseInt(v[1]); 
-        calDate = new Date(globalYear, globalMonth - 1, 1);
-        renderCalendar(); renderAll(); 
-    }
-}
-
-function getMonthTarget(year, month) {
-    if (year === 2026 && month === 7) return 3000; 
-    return 12000; 
-}
-
-function getAllMonthsAllocation(student) {
-    let allPayments = [];
-    if (student && Array.isArray(student.payments)) {
-        allPayments = [...student.payments].filter(p => p && p.date).sort((a,b) => new Date(a.date) - new Date(b.date));
-    }
-    let monthAllocations = {}; 
-    if (allPayments.length > 0) {
-        let firstDate = new Date(allPayments[0].date);
-        let curY = firstDate.getFullYear();
-        let curM = firstDate.getMonth() + 1;
-        let paymentQueue = allPayments.map(p => ({ ...p, remainingAmount: Number(p.amount || 0) }));
-        let qIdx = 0;
-        while (qIdx < paymentQueue.length && curY <= globalYear + 1) {
-            let curKey = `${curY}-${String(curM).padStart(2, '0')}`;
-            if (!monthAllocations[curKey]) monthAllocations[curKey] = 0;
-            let monthlyTarget = getMonthTarget(curY, curM);
-            let spaceInMonth = monthlyTarget - monthAllocations[curKey];
-            if (spaceInMonth > 0) {
-                let pay = paymentQueue[qIdx];
-                if (pay.remainingAmount <= spaceInMonth) {
-                    monthAllocations[curKey] += pay.remainingAmount;
-                    pay.remainingAmount = 0; qIdx++;
-                } else {
-                    monthAllocations[curKey] += spaceInMonth;
-                    pay.remainingAmount -= spaceInMonth;
-                }
-            }
-            if (spaceInMonth <= 0 || paymentQueue[qIdx]?.remainingAmount <= 0) {
-                curM++; if (curM > 12) { curM = 1; curY++; }
-            }
-        }
-    }
-    return monthAllocations;
-}
-
-function getEffectiveMonthlyStatus(student, year, month) {
-    let allocations = getAllMonthsAllocation(student);
-    let totalBulanEffective = allocations[`${year}-${String(month).padStart(2, '0')}`] || 0;
-    let monthlyTarget = getMonthTarget(year, month);
-    if (totalBulanEffective > monthlyTarget) totalBulanEffective = monthlyTarget;
-
-    let isJuliStart = (year === 2026 && month === 7);
-    let weeks = [];
-    for (let w = 1; w <= 4; w++) {
-        if (isJuliStart && w > 1) weeks.push({ name: `Minggu ${w}`, target: 0, paid: 0, status: 'off' });
-        else weeks.push({ name: `Minggu ${w}`, target: 3000, paid: 0, status: 'belum' });
-    }
-    let remaining = totalBulanEffective;
-    for (let i = 0; i < weeks.length; i++) {
-        if (weeks[i].target === 0) continue;
-        if (remaining >= weeks[i].target) { weeks[i].paid = weeks[i].target; weeks[i].status = 'lunas'; remaining -= weeks[i].target; }
-        else if (remaining > 0) { weeks[i].paid = remaining; weeks[i].status = 'kurang'; remaining = 0; }
-        else { weeks[i].paid = 0; weeks[i].status = 'belum'; }
-    }
-    return { totalBulan: totalBulanEffective, weeks };
-}
-
-function calcBulan(arr) {
-    if (!arr || !Array.isArray(arr)) return 0;
-    return arr.filter(p => {
-        if (!p || !p.date || !p.date.includes('-')) return false;
-        const parts = p.date.split('-');
-        return parseInt(parts[0]) === globalYear && parseInt(parts[1]) === globalMonth;
-    }).reduce((sum, p) => sum + Number(p.amount || p.nominal || 0), 0);
-}
-
-function calcTotal(arr) {
-    if (!arr || !Array.isArray(arr)) return 0;
-    return arr.reduce((sum, p) => sum + Number(p ? (p.amount || p.nominal || 0) : 0), 0);
-}
-
-function calcSaldo(jenis) {
-    let masukFisik = 0, masukDigi = 0, keluarFisik = 0, keluarDigi = 0;
-    if (Array.isArray(dataSiswa)) {
-        dataSiswa.forEach(s => { 
-            if (s && Array.isArray(s.payments)) {
-                s.payments.forEach(p => { 
-                    if (p) {
-                        let amt = Number(p.amount || 0);
-                        if(p.sumber === 'digital') masukDigi += amt; else masukFisik += amt; 
-                    }
-                }); 
-            }
-        });
-    }
-    if (Array.isArray(dataPemasukanLain)) {
-        dataPemasukanLain.forEach(p => { 
-            if (p) {
-                let amt = Number(p.nominal || 0);
-                if(p.sumber === 'digital') masukDigi += amt; else masukFisik += amt; 
-            }
-        });
-    }
-    if (Array.isArray(dataPengeluaran)) {
-        dataPengeluaran.forEach(e => { 
-            if (e) {
-                let amt = Number(e.amount || 0);
-                if(e.sumber === 'digital') keluarDigi += amt; else keluarFisik += amt; 
-            }
-        });
-    }
-    if(jenis === 'fisik') return masukFisik - keluarFisik;
-    if(jenis === 'digital') return masukDigi - keluarDigi;
-    return (masukFisik + masukDigi) - (keluarFisik + keluarDigi);
-}
-
-function getGamifikasi(total, freq) {
-    let xp = total + (freq * 1000);
-    if(xp >= 50000) return "Master Legend DKV 👑 [Lv. 5]"; 
-    if(xp >= 35000) return "Elite Sensation 💎 [Lv. 4]";
-    if(xp >= 20000) return "Sultan Aktif ⚡ [Lv. 3]"; 
-    if(xp >= 10000) return "Pejuang Setia 🪙 [Lv. 2]"; 
-    if(total > 0) return "Warga Baru 🥉 [Lv. 1]";
-    return "Beban Bendahara 🗿 [Lv. 0]";
-}
-
-function renderAll() { 
-    renderDashboard(); 
-    renderTablePublic(); 
-    renderMatrix(); 
-    renderAdminTabs(); 
-    renderGoalWidget();
-}
-
-function renderGoalWidget() {
-    // Murni hitungan dari database saldo aktual, no mark-up
-    let saldoBersih = calcSaldo('all');
-    let goalCurrent = saldoBersih > 0 ? saldoBersih : 0; 
-    let percentage = classGoal.target > 0 ? Math.min(100, Math.round((goalCurrent / classGoal.target) * 100)) : 0;
-
-    const gTitle = document.getElementById('goal-title');
-    const gCurr = document.getElementById('goal-current');
-    const gTarget = document.getElementById('goal-target');
-    const gFill = document.getElementById('goal-progress-fill');
-
-    if(gTitle) gTitle.innerText = classGoal.title;
-    if(gCurr) gCurr.innerText = formatRp(goalCurrent);
-    if(gTarget) gTarget.innerText = formatRp(classGoal.target);
-    if(gFill) gFill.style.width = `${percentage}%`;
-
-    // Penjelasan sumber dana otomatis agar transparan
-    if (gTitle && !document.getElementById('sumber-dana-proyek')) {
-        gTitle.insertAdjacentHTML('afterend', '<div id="sumber-dana-proyek" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; margin-bottom: 12px; font-style: italic;">*Progres dana diambil murni dari <b>Total Saldo Bersih</b> keseluruhan kas kelas.</div>');
-    }
-}
-
-function renderAdminTabs() {
-    const adminPanel = document.getElementById('admin-panel');
-    if (adminPanel && adminPanel.style.display !== 'none') {
-        if (document.getElementById('tab-siswa').style.display !== 'none') renderTableAdmin();
-        else if (document.getElementById('tab-pengeluaran').style.display !== 'none') { renderTableExpense(); initChart(); }
-        else if (document.getElementById('tab-audit').style.display !== 'none') renderAudit();
-    }
-}
-
-function renderDashboard() {
-    let totMasukBulan = Array.isArray(dataSiswa) ? dataSiswa.reduce((sum,s)=>sum+calcBulan(s.payments),0) : 0;
+    const optionsTime = { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+    const optionsDate = { timeZone: 'Asia/Jakarta', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     
-    document.getElementById('total-terkumpul').innerText = formatRp(totMasukBulan);
-    document.getElementById('total-pengeluaran-publik').innerText = formatRp(calcBulan(dataPengeluaran));
-    document.getElementById('total-lain').innerText = formatRp(calcBulan(dataPemasukanLain));
-    document.getElementById('saldo-fisik').innerText = formatRp(calcSaldo('fisik'));
-    document.getElementById('saldo-digital').innerText = formatRp(calcSaldo('digital'));
-    document.getElementById('saldo-bersih').innerText = formatRp(calcSaldo('all'));
+    const timeString = new Intl.DateTimeFormat('id-ID', optionsTime).format(now);
+    const dateString = new Intl.DateTimeFormat('id-ID', optionsDate).format(now);
 
-    updateHealthProgressCard();
+    const timeEl = document.getElementById('live-time');
+    const dateEl = document.getElementById('live-date');
+    const labelMinggu = document.getElementById('label-minggu-ini');
 
-    const feed = document.getElementById('public-activity-feed'); 
-    if (feed) {
-        feed.innerHTML = ''; let acts = [];
-        dataSiswa.forEach(s => { s?.payments?.forEach(p => { if (p?.date) acts.push({t:`Setor: ${s.nama}`, d:p.date, a:p.amount, type:'in'}); }); });
-        dataPemasukanLain.forEach(p => { if (p?.tanggal) acts.push({t:`Lain: ${p.desc}`, d:p.tanggal, a:p.nominal, type:'in'}); });
-        dataPengeluaran.forEach(e => { if (e?.date) acts.push({t:`Keluar: ${e.desc}`, d:e.date, a:e.amount, type:'out'}); });
-        
-        acts.sort((a,b) => new Date(b.d) - new Date(a.d)).slice(0,5).forEach(act => {
-            let isM = act.type === 'in'; 
-            feed.innerHTML += `<li class="activity-item"><div><div style="font-weight:800;">${act.t}</div><div style="font-size:0.75rem; color:var(--text-muted);">${act.d}</div></div><div class="money-blur" style="color:var(--${isM?'success':'danger'}); font-weight:900;">${isM?'+':'-'} ${formatRp(act.a)}</div></li>`;
-        });
-        if (acts.length === 0) feed.innerHTML = `<li style="text-align:center; padding: 20px; color:var(--text-muted);">Belum ada riwayat transaksi.</li>`;
-    }
-    
-    const lb = document.getElementById('leaderboard-list'); 
-    if (lb) {
-        lb.innerHTML = '';
-        [...dataSiswa].sort((a,b)=>(calcTotal(b.payments)+b.payments.length*1000)-(calcTotal(a.payments)+a.payments.length*1000)).slice(0,5).forEach((s,i) => {
-            if(!s || calcTotal(s.payments) === 0) return;
-            let rc = i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'rank-other';
-            lb.innerHTML += `<div class="leaderboard-item"><div style="display:flex; gap:12px; align-items:center;"><div class="rank-badge ${rc}">${i+1}</div><b>${s.nama}</b></div><div style="font-size:0.75rem; color:var(--purple); font-weight:800;">${getGamifikasi(calcTotal(s.payments), s.payments.length)}</div></div>`;
-        });
-        if (lb.innerHTML === '') lb.innerHTML = `<li style="text-align:center; padding: 20px; color:var(--text-muted);">Belum ada data kontributor.</li>`;
-    }
-    renderPublicExpenses();
+    if(timeEl) timeEl.innerText = timeString + ' WIB';
+    if(dateEl) dateEl.innerText = dateString;
+    if(labelMinggu) labelMinggu.innerText = `Periode: ${getCurrentIsoWeek()}`;
 }
 
-function updateHealthProgressCard() {
-    const monthsNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-    document.getElementById('health-month-label').innerText = `${monthsNames[globalMonth - 1]} ${globalYear}`;
-    let totalTargetBulanIni = dataSiswa.length * getMonthTarget(globalYear, globalMonth);
-    let totalTerkumpulBulanIni = dataSiswa.reduce((sum, s) => sum + getEffectiveMonthlyStatus(s, globalYear, globalMonth).totalBulan, 0);
-    let percentage = totalTargetBulanIni > 0 ? Math.min(100, Math.round((totalTerkumpulBulanIni / totalTargetBulanIni) * 100)) : 0;
-
-    document.getElementById('health-percentage').innerText = `${percentage}% Lunas`;
-    document.getElementById('health-progress-fill').style.width = `${percentage}%`;
-    let msgEl = document.getElementById('health-message');
-    if (percentage === 100) { msgEl.innerText = "Luar biasa! Seluruh warga kelas sudah melunasi kas bulan ini! 🎉"; msgEl.style.color = "var(--success)"; }
-    else if (percentage >= 50) { msgEl.innerText = "Hebat! Progress kas bulan ini sudah setengah jalan. Ayo kejar sisanya! 💪"; msgEl.style.color = "var(--primary)"; }
-    else { msgEl.innerText = "Kas bulan ini masih perlu ditagih ke beberapa warga kelas. Semangat Bendahara! 🚀"; msgEl.style.color = "var(--warning)"; }
-}
-
-function renderPublicExpenses() {
-    const tbody = document.getElementById('public-expense-tbody');
-    if (!tbody) return; tbody.innerHTML = '';
-    if (!dataPengeluaran || dataPengeluaran.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="color:var(--text-muted); padding:30px;">Belum ada pengeluaran kas.</td></tr>`;
+// Sinkronisasi & Ambil Data dari Supabase Database
+async function initAppFromSupabase() {
+    if (!window._supabaseClient) {
+        siswaData = defaultSiswaData;
+        proceedAppInit();
         return;
     }
-    [...dataPengeluaran].sort((a,b) => new Date(b.date || b.tanggal) - new Date(a.date || a.tanggal)).forEach(e => {
-        let bkt = e.bukti ? `<a href="${e.bukti}" target="_blank" class="btn btn-outline btn-sm"><i data-lucide="image"></i> Lihat Bukti</a>` : '<span style="color:var(--text-muted);">Tidak ada bukti</span>';
-        tbody.innerHTML += `<tr><td>${e.date || e.tanggal || ''}</td><td><span class="badge" style="background:var(--secondary); color:var(--text-main);">${e.kategori||'Lainnya'}</span></td><td style="text-align:left; font-weight:700;">${e.desc || ''}</td><td>${e.sumber==='digital'?'Digital':'Tunai'}</td><td class="money-blur" style="color:var(--danger); font-weight:900;">${formatRp(e.amount || 0)}</td><td>${bkt}</td></tr>`;
+    try {
+        let resSiswa = await window._supabaseClient.from('siswa').select('*');
+        if (resSiswa.error) {
+            console.warn("Error load siswa dari supabase, menggunakan default:", resSiswa.error.message);
+            siswaData = defaultSiswaData;
+        } else if (resSiswa.data && resSiswa.data.length > 0) {
+            siswaData = resSiswa.data;
+        } else {
+            // Jika tabel kosong di database, otomatis masukkan default 39 siswa ke supabase
+            siswaData = defaultSiswaData;
+            for (let s of defaultSiswaData) {
+                await window._supabaseClient.from('siswa').upsert(s);
+            }
+        }
+
+        let resKas = await window._supabaseClient.from('kas').select('*');
+        if (resKas.data) kasData = resKas.data;
+
+        let resIuran = await window._supabaseClient.from('iuran').select('*');
+        if (resIuran.data) iuranData = resIuran.data;
+
+        let resExp = await window._supabaseClient.from('pengeluaran').select('*');
+        if (resExp.data) pengeluaranData = resExp.data;
+
+    } catch (err) {
+        console.warn("Gagal terhubung ke tabel Supabase, menggunakan data lokal:", err);
+        siswaData = defaultSiswaData;
+    }
+
+    proceedAppInit();
+}
+
+function proceedAppInit() {
+    updateNavAuthButton();
+    populateSiswaDropdown();
+    renderSiswaAdminList();
+    loadDataKas();
+    loadDataIuran();
+    loadDataPengeluaran();
+    renderRanking();
+    renderCalendar();
+    checkAndProcessAutoMonthlyArchive();
+}
+
+// Arsip Otomatis Bulanan
+function checkAndProcessAutoMonthlyArchive() {
+    let nowWIB = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
+    let currentYearMonth = `${nowWIB.getFullYear()}-${String(nowWIB.getMonth() + 1).padStart(2, '0')}`;
+    
+    let archivedMonths = JSON.parse(localStorage.getItem('kas_dkv1_archives')) || {};
+    let allMonthsSet = new Set();
+
+    kasData.forEach(item => { if(item.tanggal && item.tanggal.length >= 7) allMonthsSet.add(item.tanggal.substring(0, 7)); });
+    iuranData.forEach(item => { if(item.tanggal && item.tanggal.length >= 7) allMonthsSet.add(item.tanggal.substring(0, 7)); });
+    pengeluaranData.forEach(item => { if(item.tanggal && item.tanggal.length >= 7) allMonthsSet.add(item.tanggal.substring(0, 7)); });
+
+    Object.keys(archivedMonths).forEach(ym => {
+        if(!allMonthsSet.has(ym)) delete archivedMonths[ym];
     });
-    lucide.createIcons();
-}
 
-let currentFilter = 'all';
-function setFilter(f, btn) { 
-    currentFilter = f; 
-    document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active')); 
-    if (btn) btn.classList.add('active'); 
-    renderTablePublic(); 
-}
-function filterData() { renderTablePublic(); }
+    allMonthsSet.forEach(ym => {
+        if(ym < currentYearMonth) {
+            let [y, m] = ym.split('-');
+            let monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+            let labelBulan = `${monthNames[parseInt(m)-1]} ${y}`;
 
-function renderTablePublic() {
-    const tbody = document.getElementById('data-siswa-publik'); 
-    if (!tbody) return; tbody.innerHTML = '';
-    const kw = document.getElementById('search-input')?.value.toLowerCase() || '';
-    
-    dataSiswa.forEach((s,i) => {
-        if (!s) return;
-        let weekly = getEffectiveMonthlyStatus(s, globalYear, globalMonth);
-        let totBln = weekly.totalBulan;
-        let isFullLunas = totBln >= getMonthTarget(globalYear, globalMonth);
-        
-        if(currentFilter==='lunas' && !isFullLunas) return; 
-        if(currentFilter==='belum' && isFullLunas) return;
-        if(kw && s.nama && !s.nama.toLowerCase().includes(kw)) return;
-        
-        let hasTalangan = s.payments?.some(p => p && p.talangan && p.date && parseInt(p.date.split('-')[0]) === globalYear && parseInt(p.date.split('-')[1]) === globalMonth);
-        
-        let weekBadges = '';
-        weekly.weeks.forEach((w, idx) => {
-            if (w.status === 'off') return;
-            let badgeClass = w.status === 'lunas' ? 'badge-lunas' : w.status === 'kurang' ? 'badge-talangan' : 'badge-belum';
-            weekBadges += `<span class="badge ${badgeClass}" style="font-size:0.65rem; padding:4px 8px; margin-right:4px;"><i data-lucide="${w.status === 'lunas' ? 'check' : w.status === 'kurang' ? 'clock' : 'x'}" style="width:12px;height:12px;"></i> M${idx+1} (${formatRp(w.paid)})</span>`;
-        });
-        if(hasTalangan) weekBadges += ` <span class="badge badge-talangan" style="font-size:0.65rem; padding:4px 8px;">HUTANG</span>`;
-        
-        let btn = `<button class="btn btn-outline btn-icon-only" onclick="lihatProfil(${s.id})"><i data-lucide="eye"></i></button>`;
-        if(!isFullLunas || hasTalangan) btn += ` <button class="btn btn-whatsapp btn-icon-only" onclick="window.open('https://api.whatsapp.com/send?text=${encodeURIComponent('Halo '+s.nama+', tagihan kas mingguan lo di bulan ini belum lunas full. Segera diurus ya, Thanks!')}')"><i data-lucide="message-circle"></i></button>`;
-        
-        tbody.innerHTML += `<tr><td><b>#${i+1}</b></td><td><div class="student-profile-trigger" onclick="lihatProfil(${s.id})"><img src="${generateAvatar(s.nama)}" class="student-avatar"><b>${s.nama}</b></div></td><td class="money-blur" style="font-weight:900; color:var(--primary);">${formatRp(totBln)}</td><td><div style="display:flex; flex-wrap:wrap; gap:4px; justify-content:center;">${weekBadges}</div></td><td>${btn}</td></tr>`;
-    }); 
-    if(tbody.innerHTML === '') tbody.innerHTML = `<tr><td colspan="5" style="color:var(--text-muted); padding:30px;">Data tidak ditemukan.</td></tr>`;
-    lucide.createIcons();
-}
+            let tPemasukan = 0;
+            kasData.forEach(k => { if(k.tanggal && k.tanggal.startsWith(ym)) tPemasukan += Number(k.nominal) || 0; });
+            iuranData.forEach(i => { if(i.tanggal && i.tanggal.startsWith(ym)) tPemasukan += Number(i.nominal) || 0; });
 
-function renderMatrix() {
-    const tbody = document.getElementById('data-matrix-body'); 
-    if (!tbody) return; tbody.innerHTML = '';
-    dataSiswa.forEach((s,i) => {
-        if (!s) return;
-        let allocations = getAllMonthsAllocation(s);
-        let mt = [];
-        for (let m = 1; m <= 12; m++) mt.push(allocations[`${globalYear}-${String(m).padStart(2, '0')}`] || 0);
-        let row = `<td><b>${i+1}</b></td><td style="text-align:left; font-weight:800;">${s.nama}</td>`;
-        mt.forEach((v, idx) => { 
-            let mTarget = getMonthTarget(globalYear, idx + 1);
-            row += `<td class="money-blur" style="color:var(--${v>=mTarget?'success':v>0?'primary':'text-muted'}); font-weight:800;">${v>0?formatRp(v):'-'}</td>`; 
-        });
-        tbody.innerHTML += `<tr>${row}<td class="money-blur" style="font-weight:900; color:var(--primary);">${formatRp(calcTotal(s.payments))}</td></tr>`;
+            let tPengeluaran = 0;
+            pengeluaranData.forEach(e => { if(e.tanggal && e.tanggal.startsWith(ym)) tPengeluaran += Number(e.nominal) || 0; });
+
+            archivedMonths[ym] = { periode: labelBulan, pemasukan: tPemasukan, pengeluaran: tPengeluaran, saldo: tPemasukan - tPengeluaran };
+        }
     });
+
+    localStorage.setItem('kas_dkv1_archives', JSON.stringify(archivedMonths));
+    renderRekapTable();
 }
 
-function switchMainView(v) {
-    document.querySelectorAll('.main-tab-btn').forEach(b=>b.classList.remove('active'));
-    document.getElementById('view-tabel').style.display = v==='tabel'?'block':'none';
-    document.getElementById('view-matrix').style.display = v==='matrix'?'block':'none';
-    document.querySelector(v==='tabel'?'.main-nav-tabs button:nth-child(1)':'.main-nav-tabs button:nth-child(2)')?.classList.add('active'); 
-    lucide.createIcons();
-}
+function renderRekapTable() {
+    let tbody = document.getElementById('tabel-rekap-body');
+    if(!tbody) return;
 
-function switchAdminTab(t) {
-    document.querySelectorAll('.admin-tab-item').forEach(b=>b.classList.remove('active'));
-    document.querySelectorAll('.admin-tab-content').forEach(c=>c.style.display = 'none');
-    document.getElementById(`tab-${t}`).style.display = 'block';
+    let archivedMonths = JSON.parse(localStorage.getItem('kas_dkv1_archives')) || {};
+    let nowWIB = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
+    let currentYM = `${nowWIB.getFullYear()}-${String(nowWIB.getMonth() + 1).padStart(2, '0')}`;
+    let monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+    let currentLabel = `${monthNames[nowWIB.getMonth()]} ${nowWIB.getFullYear()} (Berjalan)`;
+
+    let curPemasukan = 0;
+    kasData.forEach(k => { if(k.tanggal && k.tanggal.startsWith(currentYM)) curPemasukan += Number(k.nominal) || 0; });
+    iuranData.forEach(i => { if(i.tanggal && i.tanggal.startsWith(currentYM)) curPemasukan += Number(i.nominal) || 0; });
+
+    let curPengeluaran = 0;
+    pengeluaranData.forEach(e => { if(e.tanggal && e.tanggal.startsWith(currentYM)) curPengeluaran += Number(e.nominal) || 0; });
+
+    let allKeys = Object.keys(archivedMonths).sort().reverse();
     
-    let buttons = document.querySelectorAll('.admin-tab-item');
-    if(t==='siswa') buttons[0]?.classList.add('active');
-    if(t==='pengeluaran') { buttons[1]?.classList.add('active'); renderTableExpense(); initChart(); }
-    if(t==='pengumuman') buttons[2]?.classList.add('active');
-    if(t==='audit') { buttons[3]?.classList.add('active'); renderAudit(); }
-    if(t==='siswa') renderTableAdmin();
+    let html = `
+        <tr onclick="openRekapModal('${currentYM}', '${currentLabel}')" class="bg-blue-50/40 font-semibold hover:bg-blue-100/50 transition-all cursor-pointer">
+            <td class="py-3.5 px-4 text-slate-900">${currentLabel} 🔍</td>
+            <td class="py-3.5 px-4 text-emerald-600">Rp ${curPemasukan.toLocaleString('id-ID')}</td>
+            <td class="py-3.5 px-4 text-rose-600">Rp ${curPengeluaran.toLocaleString('id-ID')}</td>
+            <td class="py-3.5 px-4 text-accent">Rp ${(curPemasukan - curPengeluaran).toLocaleString('id-ID')}</td>
+        </tr>
+    `;
+
+    allKeys.forEach(ym => {
+        let arc = archivedMonths[ym];
+        html += `
+            <tr onclick="openRekapModal('${ym}', '${arc.periode}')" class="hover:bg-slate-100/60 transition-all cursor-pointer">
+                <td class="py-3.5 px-4 font-semibold text-slate-800">${arc.periode} 🔍</td>
+                <td class="py-3.5 px-4 text-emerald-600">Rp ${Number(arc.pemasukan).toLocaleString('id-ID')}</td>
+                <td class="py-3.5 px-4 text-rose-600">Rp ${Number(arc.pengeluaran).toLocaleString('id-ID')}</td>
+                <td class="py-3.5 px-4 text-slate-900 font-bold">Rp ${Number(arc.saldo).toLocaleString('id-ID')}</td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
 }
 
-function renderTableAdmin() {
-    const tb = document.getElementById('data-siswa-admin'); 
-    if (!tb) return; tb.innerHTML='';
-    dataSiswa.forEach((s,i) => {
-        if (!s) return;
-        let tot = calcTotal(s.payments); 
-        tb.innerHTML += `<tr><td><b>${i+1}</b></td><td style="text-align:left; font-weight:800;">${s.nama}</td><td><b style="color:var(--purple);">${getGamifikasi(tot, s.payments.length)}</b></td><td class="money-blur" style="font-weight:900; color:var(--primary);">${formatRp(tot)}</td><td><div style="display:flex; justify-content:center; gap:8px;"><button class="btn btn-outline btn-icon-only" onclick="openFormModal(${s.id})"><i data-lucide="pencil"></i></button> <button class="btn btn-danger btn-icon-only" onclick="hapusSiswa(${s.id})"><i data-lucide="trash"></i></button></div></td></tr>`;
-    }); 
-    lucide.createIcons();
+function openRekapModal(ym, titleLabel) {
+    const modal = document.getElementById('rekap-modal');
+    const container = document.getElementById('rekap-modal-container');
+    const titleEl = document.getElementById('rekap-modal-title');
+    const contentEl = document.getElementById('rekap-modal-content');
+
+    titleEl.innerText = `Rincian Arsip: ${titleLabel}`;
+
+    let matchedKas = kasData.filter(item => item.tanggal && item.tanggal.startsWith(ym) && Number(item.nominal) > 0);
+    let matchedIuran = iuranData.filter(item => item.tanggal && item.tanggal.startsWith(ym) && Number(item.nominal) > 0);
+    let matchedExp = pengeluaranData.filter(item => item.tanggal && item.tanggal.startsWith(ym));
+
+    let html = '';
+    if(matchedKas.length > 0) {
+        html += `<div class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Uang Kas (${matchedKas.length})</div>`;
+        matchedKas.forEach(item => {
+            let metodeBadge = item.metode === 'Digital' ? '💳 Digital' : '💵 Cash';
+            html += `<div class="flex justify-between items-center p-3 bg-surface rounded-xl border border-bordercol text-xs mb-2"><div><span class="font-semibold text-slate-900">${item.nama}</span><span class="text-[10px] text-slate-500 block">Absen ${item.absen || '-'} &bull; ${metodeBadge} &bull; ${item.tanggal}</span></div><span class="font-bold text-emerald-600">+ Rp ${Number(item.nominal).toLocaleString('id-ID')}</span></div>`;
+        });
+    }
+
+    if(matchedIuran.length > 0) {
+        html += `<div class="text-[11px] font-bold text-indigo-600 uppercase tracking-wider mt-3 mb-1">Iuran Khusus (${matchedIuran.length})</div>`;
+        matchedIuran.forEach(item => {
+            let metodeBadge = item.metode === 'Digital' ? '💳 Digital' : '💵 Cash';
+            html += `<div class="flex justify-between items-center p-3 bg-surface rounded-xl border border-bordercol text-xs mb-2"><div><span class="font-semibold text-slate-900">${item.nama} (${item.namaIuran})</span><span class="text-[10px] text-slate-500 block">Absen ${item.absen || '-'} &bull; ${metodeBadge} &bull; ${item.tanggal}</span></div><span class="font-bold text-indigo-600">+ Rp ${Number(item.nominal).toLocaleString('id-ID')}</span></div>`;
+        });
+    }
+
+    if(matchedExp.length > 0) {
+        html += `<div class="text-[11px] font-bold text-rose-600 uppercase tracking-wider mt-3 mb-1">Pengeluaran (${matchedExp.length})</div>`;
+        matchedExp.forEach(item => {
+            html += `<div class="flex justify-between items-center p-3 bg-surface rounded-xl border border-bordercol text-xs mb-2"><div><span class="font-semibold text-slate-900">${item.keterangan}</span><span class="text-[10px] text-slate-500 block">Tanggal: ${item.tanggal}</span></div><span class="font-bold text-rose-600">- Rp ${Number(item.nominal).toLocaleString('id-ID')}</span></div>`;
+        });
+    }
+
+    if(matchedKas.length === 0 && matchedIuran.length === 0 && matchedExp.length === 0) {
+        html = `<div class="text-center py-8 text-slate-400 font-medium text-xs">Belum ada catatan transaksi pada periode ini.</div>`;
+    }
+
+    contentEl.innerHTML = html;
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        container.classList.remove('scale-95', 'opacity-0');
+        container.classList.add('scale-100', 'opacity-100');
+    }, 10);
 }
 
-function renderTableExpense() {
-    const tb = document.getElementById('data-pengeluaran'); 
-    if (!tb) return; tb.innerHTML='';
-    dataPengeluaran.forEach((e) => {
-        if (!e) return;
-        let bkt = e.bukti ? `<a href="${e.bukti}" target="_blank" class="btn btn-outline btn-icon-only" style="padding:4px;"><i data-lucide="image"></i></a>` : '-';
-        tb.innerHTML += `<tr><td>${e.date || e.tanggal || ''}</td><td><span class="badge" style="background:var(--secondary); color:var(--text-main);">${e.kategori||'Lainnya'}</span></td><td style="text-align:left; font-weight:700;">${e.desc}</td><td>${e.sumber==='digital'?'Digital':'Tunai'}</td><td class="money-blur" style="color:var(--danger); font-weight:900;">${formatRp(e.amount || 0)}</td><td>${bkt}</td><td><button class="btn btn-danger btn-icon-only" onclick="hapusEx(${e.id})"><i data-lucide="trash"></i></button></td></tr>`;
-    }); 
-    lucide.createIcons();
+function closeRekapModal() {
+    const modal = document.getElementById('rekap-modal');
+    const container = document.getElementById('rekap-modal-container');
+    container.classList.remove('scale-100', 'opacity-100');
+    container.classList.add('scale-95', 'opacity-0');
+    setTimeout(() => modal.classList.add('hidden'), 200);
 }
 
-function renderAudit() {
-    const tb = document.getElementById('data-audit'); 
-    if (!tb) return; tb.innerHTML='';
-    let todayDate = new Date().toLocaleDateString('id-ID'); let checkout = 0;
-    dataAudit.forEach(l => { if (l) tb.innerHTML += `<tr><td style="font-size:0.8rem; color:var(--text-muted);">${l.time}</td><td><span class="badge" style="background:var(--secondary); color:var(--text-main);">${l.action}</span></td><td style="text-align:left; font-weight:700;">${l.detail}</td></tr>`; });
+function exportToExcel() {
+    let tableHTML = document.getElementById('excel-table').outerHTML;
+    let excelFile = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>Report</title></head><body><h2>Laporan Keuangan XI DKV 1</h2>${tableHTML}</body></html>`;
+    let blob = new Blob([excelFile], { type: 'application/vnd.ms-excel' });
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement('a');
+    a.href = url;
+    a.download = `Enterprise_Financial_Report_${new Date().toISOString().slice(0, 10)}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function renderCalendar() {
+    const monthSelect = document.getElementById('cal-month');
+    const yearSelect = document.getElementById('cal-year');
+    const gridEl = document.getElementById('calendar-grid');
+
+    if(!monthSelect || !yearSelect || !gridEl) return;
+
+    let month = parseInt(monthSelect.value);
+    let year = parseInt(yearSelect.value);
+    let firstDay = new Date(year, month, 1).getDay();
+    let totalDays = new Date(year, month + 1, 0).getDate();
+
+    let html = '';
+    for(let i = 0; i < firstDay; i++) html += `<span></span>`;
+
+    let today = new Date();
+    let currentWIBDate = new Date(today.toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
+    let isCurrentMonth = currentWIBDate.getMonth() === month && currentWIBDate.getFullYear() === year;
+    let todayDate = currentWIBDate.getDate();
+
+    for(let day = 1; day <= totalDays; day++) {
+        let isToday = isCurrentMonth && day === todayDate;
+        let formattedMonth = String(month + 1).padStart(2, '0');
+        let formattedDay = String(day).padStart(2, '0');
+        let dateStr = `${year}-${formattedMonth}-${formattedDay}`;
+
+        let hasIncome = kasData.some(d => d.tanggal === dateStr && Number(d.nominal) > 0) || iuranData.some(i => i.tanggal === dateStr && Number(i.nominal) > 0);
+        let hasExpense = pengeluaranData.some(e => e.tanggal === dateStr);
+
+        let indicatorDot = (hasIncome || hasExpense) ? `<span class="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 bg-accent rounded-full"></span>` : '';
+        let baseClass = isToday ? 'bg-accent text-white font-bold rounded-xl shadow-sm' : 'hover:bg-blue-50 text-slate-700 rounded-xl py-1.5 border border-transparent hover:border-blue-200 cursor-pointer';
+
+        html += `<div onclick="openCalendarModal('${dateStr}')" class="py-1.5 relative ${baseClass}">${day}${indicatorDot}</div>`;
+    }
+    gridEl.innerHTML = html;
+}
+
+function openCalendarModal(dateStr) {
+    const modal = document.getElementById('calendar-modal');
+    const container = document.getElementById('cal-modal-container');
+    const titleEl = document.getElementById('cal-modal-title');
+    const contentEl = document.getElementById('cal-modal-content');
+
+    let [y, m, d] = dateStr.split('-');
+    titleEl.innerText = `Audit Tanggal: ${d} / ${m} / ${y}`;
+
+    let matchedKas = kasData.filter(item => item.tanggal === dateStr && Number(item.nominal) > 0);
+    let matchedIuran = iuranData.filter(item => item.tanggal === dateStr && Number(item.nominal) > 0);
+    let matchedExp = pengeluaranData.filter(item => item.tanggal === dateStr);
+
+    let html = '';
+    if(matchedKas.length > 0) {
+        html += `<div class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Uang Kas (${matchedKas.length})</div>`;
+        matchedKas.forEach(item => {
+            let metodeBadge = item.metode === 'Digital' ? '💳 Digital' : '💵 Cash';
+            html += `<div class="flex justify-between items-center p-3 bg-surface rounded-xl border border-bordercol text-xs mb-2"><div><span class="font-semibold text-slate-900">${item.nama}</span><span class="text-[10px] text-slate-500 block">Absen ${item.absen || '-'} &bull; ${metodeBadge}</span></div><span class="font-bold text-emerald-600">+ Rp ${Number(item.nominal).toLocaleString('id-ID')}</span></div>`;
+        });
+    }
+
+    if(matchedIuran.length > 0) {
+        html += `<div class="text-[11px] font-bold text-indigo-600 uppercase tracking-wider mt-3 mb-1">Iuran Khusus (${matchedIuran.length})</div>`;
+        matchedIuran.forEach(item => {
+            let metodeBadge = item.metode === 'Digital' ? '💳 Digital' : '💵 Cash';
+            html += `<div class="flex justify-between items-center p-3 bg-surface rounded-xl border border-bordercol text-xs mb-2"><div><span class="font-semibold text-slate-900">${item.nama} (${item.namaIuran})</span><span class="text-[10px] text-slate-500 block">Absen ${item.absen || '-'} &bull; ${metodeBadge}</span></div><span class="font-bold text-indigo-600">+ Rp ${Number(item.nominal).toLocaleString('id-ID')}</span></div>`;
+        });
+    }
+
+    if(matchedExp.length > 0) {
+        html += `<div class="text-[11px] font-bold text-rose-600 uppercase tracking-wider mt-3 mb-1">Pengeluaran (${matchedExp.length})</div>`;
+        matchedExp.forEach(item => {
+            html += `<div class="flex justify-between items-center p-3 bg-surface rounded-xl border border-bordercol text-xs mb-2"><div><span class="font-semibold text-slate-900">${item.keterangan}</span><span class="text-[10px] text-slate-500 block">Keperluan Kelas</span></div><span class="font-bold text-rose-600">- Rp ${Number(item.nominal).toLocaleString('id-ID')}</span></div>`;
+        });
+    }
+
+    if(matchedKas.length === 0 && matchedIuran.length === 0 && matchedExp.length === 0) {
+        html = `<div class="text-center py-8 text-slate-400 font-medium text-xs">Tidak ada transaksi pada tanggal ini.</div>`;
+    }
+
+    contentEl.innerHTML = html;
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        container.classList.remove('scale-95', 'opacity-0');
+        container.classList.add('scale-100', 'opacity-100');
+    }, 10);
+}
+
+function closeCalendarModal() {
+    const modal = document.getElementById('calendar-modal');
+    const container = document.getElementById('cal-modal-container');
+    container.classList.remove('scale-100', 'opacity-100');
+    container.classList.add('scale-95', 'opacity-0');
+    setTimeout(() => modal.classList.add('hidden'), 200);
+}
+
+function initCalendarDefault() {
+    let nowWIB = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
+    const monthSelect = document.getElementById('cal-month');
+    const yearSelect = document.getElementById('cal-year');
+
+    if(monthSelect) monthSelect.value = nowWIB.getMonth();
+    if(yearSelect) yearSelect.value = nowWIB.getFullYear();
+    renderCalendar();
+}
+
+// Manajemen Login & Sesi Admin (Username: syallofficial.id, Password: irsyal989511)
+function checkAdminAccess() {
+    if(isAdminLoggedIn) {
+        switchTab('admin');
+    } else {
+        openLoginModal();
+    }
+}
+
+function openLoginModal() {
+    const modal = document.getElementById('login-modal');
+    const container = document.getElementById('login-container');
+    document.getElementById('login-user').value = '';
+    document.getElementById('login-pass').value = '';
+    document.getElementById('login-error').classList.add('hidden');
     
-    dataSiswa.forEach(s => { s?.payments?.forEach(p => { if (p?.date && new Date(p.date).toLocaleDateString('id-ID') === todayDate) checkout += Number(p.amount || 0); }); });
-    dataPemasukanLain.forEach(p => { if (p?.tanggal && new Date(p.tanggal).toLocaleDateString('id-ID') === todayDate) checkout += Number(p.nominal || 0); });
-    document.getElementById('daily-checkout').innerText = formatRp(checkout);
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        container.classList.remove('scale-95', 'opacity-0');
+        container.classList.add('scale-100', 'opacity-100');
+    }, 10);
 }
 
-function openModal(id) { document.getElementById(id)?.classList.add('show'); lucide.createIcons(); }
-function closeModal(id) { document.getElementById(id)?.classList.remove('show'); }
-function openLogin() { openModal('login-modal'); }
+function closeLoginModal() {
+    const modal = document.getElementById('login-modal');
+    const container = document.getElementById('login-container');
+    container.classList.remove('scale-100', 'opacity-100');
+    container.classList.add('scale-95', 'opacity-0');
+    setTimeout(() => modal.classList.add('hidden'), 200);
+}
 
-function prosesLogin() {
-    if (document.getElementById('username').value.trim() === 'syallofficial.id' && document.getElementById('password').value.trim() === 'irsyal989511') {
-        closeModal('login-modal'); switchMainView('tabel');
-        document.getElementById('admin-panel').style.display = 'block';
-        document.getElementById('btn-login-trigger').style.display = 'none';
-        document.getElementById('btn-logout-trigger').style.display = 'flex';
-        switchAdminTab('siswa'); logAudit('LOGIN', 'Admin masuk panel.'); showToast('Akses Admin Diberikan!');
-        document.getElementById('username').value = ''; document.getElementById('password').value = '';
-    } else { showToast('Kredensial salah!', 'error'); }
+function prosesLoginAdmin(e) {
+    e.preventDefault();
+    let u = document.getElementById('login-user').value.trim();
+    let p = document.getElementById('login-pass').value.trim();
+
+    if(u === 'syallofficial.id' && p === 'irsyal989511') {
+        isAdminLoggedIn = true;
+        localStorage.setItem('kas_dkv1_admin_logged', 'true');
+        closeLoginModal();
+        updateNavAuthButton();
+        switchTab('admin');
+    } else {
+        document.getElementById('login-error').classList.remove('hidden');
+    }
 }
 
 function logoutAdmin() {
-    document.getElementById('admin-panel').style.display = 'none';
-    document.getElementById('btn-login-trigger').style.display = 'flex';
-    document.getElementById('btn-logout-trigger').style.display = 'none';
-    showToast('Berhasil keluar.');
+    isAdminLoggedIn = false;
+    localStorage.removeItem('kas_dkv1_admin_logged');
+    updateNavAuthButton();
+    switchTab('home');
 }
 
-function openFormModal(id=null) {
-    if(id) { 
-        let s = dataSiswa.find(x=>x.id===id); 
-        if (s) { document.getElementById('form-id').value = s.id; document.getElementById('form-nama').value = s.nama; document.getElementById('form-title').innerText = 'Edit Siswa'; }
-    } else { 
-        document.getElementById('form-id').value = ''; document.getElementById('form-nama').value = ''; document.getElementById('form-title').innerText = 'Tambah Siswa Baru'; 
+function switchTab(tab) {
+    const homeSec = document.getElementById('section-home');
+    const adminSec = document.getElementById('section-admin');
+    const btnHome = document.getElementById('btn-home');
+    const btnAdmin = document.getElementById('btn-admin');
+
+    if(tab === 'home') {
+        homeSec.classList.remove('hidden');
+        adminSec.classList.add('hidden');
+        btnHome.className = "px-5 py-2 rounded-lg font-semibold text-xs transition-all bg-accent text-white shadow-sm";
+        btnAdmin.className = "px-5 py-2 rounded-lg font-semibold text-xs text-slate-300 transition-all hover:text-white";
+        loadDataKas();
+        loadDataIuran();
+        loadDataPengeluaran();
+        renderRanking();
+        renderCalendar();
+        checkAndProcessAutoMonthlyArchive();
+    } else {
+        if(!isAdminLoggedIn) {
+            openLoginModal();
+            return;
+        }
+        homeSec.classList.add('hidden');
+        adminSec.classList.remove('hidden');
+        btnAdmin.className = "px-5 py-2 rounded-lg font-semibold text-xs transition-all bg-accent text-white shadow-sm";
+        btnHome.className = "px-5 py-2 rounded-lg font-semibold text-xs text-slate-300 transition-all hover:text-white";
+        loadAdminStatistics();
+        loadDataAdminKas();
+        loadDataAdminIuran();
+        loadDataAdminPengeluaran();
+        renderSiswaAdminList();
     }
-    openModal('form-modal');
 }
 
-async function simpanDataSiswa() {
-    let id = document.getElementById('form-id').value;
-    let nama = document.getElementById('form-nama').value.trim();
-    if(!nama) return showToast('Nama wajib!','error');
-    if(id) { 
-        let s = dataSiswa.find(x=>x.id == id); if (s) { s.nama = nama; logAudit('EDIT', `Ubah nama ${nama}`); }
-    } else { 
-        dataSiswa.push({id:Date.now(), nama, payments:[]}); logAudit('TAMBAH', `Siswa: ${nama}`); 
+function toggleNamaIuran() {
+    let tipe = document.getElementById('input-tipe').value;
+    let wrapper = document.getElementById('wrapper-nama-iuran');
+    let inputNamaIuran = document.getElementById('input-nama-iuran');
+
+    if(tipe === 'Iuran') {
+        wrapper.classList.remove('hidden');
+        inputNamaIuran.required = true;
+    } else {
+        wrapper.classList.add('hidden');
+        inputNamaIuran.required = false;
+        inputNamaIuran.value = '';
     }
-    dataSiswa.sort((a, b) => a.nama.localeCompare(b.nama, 'id', { sensitivity: 'base' }));
-    await saveData('XIDKV1_Siswa', dataSiswa, 'siswa'); closeModal('form-modal'); renderAll(); showToast('Disimpan!');
+}
+
+function hitungPatungan() {
+    let target = Number(document.getElementById('calc-target').value) || 0;
+    let siswa = Number(document.getElementById('calc-siswa').value) || (siswaData.length || 39);
+    let hasil = target / siswa;
+    let hasilBulat = Math.ceil(hasil / 1000) * 1000;
+
+    document.getElementById('calc-hasil').innerText = `Rp ${Math.round(hasil).toLocaleString('id-ID')}`;
+    document.getElementById('calc-hasil-bulat').innerText = `Rp ${hasilBulat.toLocaleString('id-ID')}`;
+}
+
+function startGiveawaySpin() {
+    let currentWeek = getCurrentIsoWeek();
+    let lunasMingguIniSiswa = siswaData.filter(s => {
+        return kasData.some(k => Number(k.absen) === Number(s.absen) && k.minggu === currentWeek && Number(k.nominal) > 0);
+    });
+
+    let statusBox = document.getElementById('giveaway-status-box');
+    let winnerBox = document.getElementById('giveaway-winner-name');
+    let btnSpin = document.getElementById('btn-spin');
+
+    if(lunasMingguIniSiswa.length === 0) {
+        alert('Belum ada siswa yang lunas uang kas minggu ini untuk di-spin!');
+        return;
+    }
+
+    btnSpin.disabled = true;
+    btnSpin.classList.add('opacity-50', 'cursor-not-allowed');
+    statusBox.innerText = '🎲 Mengocok undian untuk siswa teladan minggu ini...';
+
+    let counter = 0;
+    let spinInterval = setInterval(() => {
+        let randomIndex = Math.floor(Math.random() * lunasMingguIniSiswa.length);
+        winnerBox.innerText = lunasMingguIniSiswa[randomIndex].nama;
+        counter++;
+
+        if(counter > 15) {
+            clearInterval(spinInterval);
+            let finalWinner = lunasMingguIniSiswa[Math.floor(Math.random() * lunasMingguIniSiswa.length)];
+            winnerBox.innerText = `🏆 SELAMAT! ${finalWinner.nama} 🎉`;
+            statusBox.innerText = 'Pemenang Giveaway Minggu Ini Terpilih!';
+            btnSpin.disabled = false;
+            btnSpin.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+    }, 100);
+}
+
+function renderRanking() {
+    let rankingEl = document.getElementById('ranking-list');
+    if(!rankingEl) return;
+    
+    let kontribusiMap = {};
+    kasData.forEach(item => {
+        if(Number(item.nominal) > 0) kontribusiMap[item.nama] = (kontribusiMap[item.nama] || 0) + (Number(item.nominal) || 0);
+    });
+    iuranData.forEach(item => {
+        if(Number(item.nominal) > 0) kontribusiMap[item.nama] = (kontribusiMap[item.nama] || 0) + (Number(item.nominal) || 0);
+    });
+
+    let sortedArray = Object.keys(kontribusiMap).map(nama => ({ nama, total: kontribusiMap[nama] }));
+    sortedArray.sort((a, b) => b.total - a.total);
+
+    let html = '';
+    if(sortedArray.length === 0) {
+        rankingEl.innerHTML = `<div class="text-center py-6 text-slate-400 font-medium text-xs">Belum ada data kontribusi</div>`;
+        return;
+    }
+
+    sortedArray.slice(0, 5).forEach((item, index) => {
+        let medalColor = index === 0 ? 'bg-amber-100 text-amber-700 border-amber-300' : index === 1 ? 'bg-slate-200 text-slate-700 border-slate-300' : index === 2 ? 'bg-amber-700/20 text-amber-900 border-amber-700/30' : 'bg-surface text-slate-600 border-bordercol';
+        let rankBadge = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
+
+        html += `<div class="flex items-center justify-between p-3 rounded-xl border border-bordercol bg-surface hover:bg-slate-100/60 transition-all"><div class="flex items-center gap-3"><span class="w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold border ${medalColor}">${rankBadge}</span><span class="text-xs font-semibold text-slate-900">${item.nama}</span></div><span class="text-xs font-bold text-accent">Rp ${Number(item.total).toLocaleString('id-ID')}</span></div>`;
+    });
+    rankingEl.innerHTML = html;
+}
+
+function updateDashboardMetrics() {
+    let totalPemasukan = 0;
+    let totalCash = 0;
+    let totalDigital = 0;
+    let currentWeek = getCurrentIsoWeek();
+    let countBelumMingguIni = 0;
+    
+    kasData.forEach(item => {
+        let nominal = Number(item.nominal) || 0;
+        totalPemasukan += nominal;
+        if(item.metode === 'Digital') totalDigital += nominal; else totalCash += nominal;
+    });
+
+    iuranData.forEach(item => {
+        let nominal = Number(item.nominal) || 0;
+        totalPemasukan += nominal;
+        if(item.metode === 'Digital') totalDigital += nominal; else totalCash += nominal;
+    });
+
+    siswaData.forEach(s => {
+        let sudahBayarMingguIni = kasData.some(k => Number(k.absen) === Number(s.absen) && k.minggu === currentWeek && Number(k.nominal) > 0);
+        if(!sudahBayarMingguIni) countBelumMingguIni++;
+    });
+
+    let totalPengeluaran = pengeluaranData.reduce((sum, item) => sum + (Number(item.nominal) || 0), 0);
+    let saldoBersih = totalPemasukan - totalPengeluaran;
+
+    let elPemasukan = document.getElementById('stat-total-pemasukan');
+    let elCash = document.getElementById('stat-total-cash');
+    let elDigital = document.getElementById('stat-total-digital');
+    let elPengeluaran = document.getElementById('stat-total-pengeluaran');
+    let elSaldo = document.getElementById('stat-saldo-bersih');
+    let elBelum = document.getElementById('stat-belum-bayar');
+
+    if(elPemasukan) elPemasukan.innerText = `Rp ${totalPemasukan.toLocaleString('id-ID')}`;
+    if(elCash) elCash.innerText = `Rp ${totalCash.toLocaleString('id-ID')}`;
+    if(elDigital) elDigital.innerText = `Rp ${totalDigital.toLocaleString('id-ID')}`;
+    if(elPengeluaran) elPengeluaran.innerText = `Rp ${totalPengeluaran.toLocaleString('id-ID')}`;
+    if(elSaldo) elSaldo.innerText = `Rp ${saldoBersih.toLocaleString('id-ID')}`;
+    if(elBelum) elBelum.innerText = `${countBelumMingguIni} Siswa`;
+}
+
+function loadAdminStatistics() {
+    let currentWeek = getCurrentIsoWeek();
+    let countBelum = 0;
+    siswaData.forEach(s => {
+        let lunas = kasData.some(k => Number(k.absen) === Number(s.absen) && k.minggu === currentWeek && Number(k.nominal) > 0);
+        if(!lunas) countBelum++;
+    });
+
+    let elKasCount = document.getElementById('admin-stat-kas-count');
+    let elIuranCount = document.getElementById('admin-stat-iuran-count');
+    let elBelumCount = document.getElementById('admin-stat-belum-count');
+    let elExpTotal = document.getElementById('admin-stat-exp-total');
+
+    if(elKasCount) elKasCount.innerText = `${kasData.length} Entri`;
+    if(elIuranCount) elIuranCount.innerText = `${iuranData.length} Entri`;
+    if(elBelumCount) elBelumCount.innerText = `${countBelum} Siswa`;
+    if(elExpTotal) elExpTotal.innerText = `Rp ${pengeluaranData.reduce((s, i) => s + (Number(i.nominal)||0), 0).toLocaleString('id-ID')}`;
+}
+
+// Populate Dropdown Siswa di Form Input
+function populateSiswaDropdown() {
+    const select = document.getElementById('input-siswa-select');
+    if(!select) return;
+
+    sortDataByAbsen();
+    let html = `<option value="">-- Pilih Siswa Berdasarkan Absen --</option>`;
+    siswaData.forEach(s => {
+        html += `<option value="${s.absen}">Absen ${s.absen} - ${s.nama}</option>`;
+    });
+    select.innerHTML = html;
+}
+
+function onSelectSiswaChange() {
+    const select = document.getElementById('input-siswa-select');
+    let selectedAbsen = select.value;
+    if(!selectedAbsen) return;
+}
+
+// Load Tabel Kas Utama
+function loadDataKas() {
+    sortDataByAbsen();
+    updateDashboardMetrics();
+    renderRanking();
+    renderCalendar();
+    checkAndProcessAutoMonthlyArchive();
+    
+    const tbody = document.getElementById('tabel-kas-body');
+    if(!tbody) return;
+    
+    if(siswaData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-400 font-medium">Belum ada data siswa.</td></tr>`;
+        return;
+    }
+
+    let currentWeek = getCurrentIsoWeek();
+    let html = '';
+
+    siswaData.forEach((s) => {
+        let transaksiMingguIni = kasData.find(k => Number(k.absen) === Number(s.absen) && k.minggu === currentWeek && Number(k.nominal) > 0);
+        let isLunas = Boolean(transaksiMingguIni);
+
+        let totalSiswaKontribusi = 0;
+        kasData.forEach(k => { if(Number(k.absen) === Number(s.absen)) totalSiswaKontribusi += Number(k.nominal) || 0; });
+        iuranData.forEach(i => { if(Number(i.absen) === Number(s.absen)) totalSiswaKontribusi += Number(i.nominal) || 0; });
+
+        let titleObj = getUserTitle(totalSiswaKontribusi);
+        let statusBadge = isLunas 
+            ? '<span class="bg-emerald-50 text-emerald-600 border border-emerald-200 px-2.5 py-1 rounded-md font-semibold text-[10px]">Lunas Minggu Ini</span>' 
+            : '<span class="bg-amber-50 text-amber-600 border border-amber-200 px-2.5 py-1 rounded-md font-semibold text-[10px]">Belum Bayar</span>';
+
+        let metodeBadge = isLunas && transaksiMingguIni.metode === 'Digital' 
+            ? '<span class="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded text-[10px] font-semibold">💳 Digital</span>' 
+            : (isLunas ? '<span class="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[10px] font-semibold">💵 Cash</span>' : '-');
+
+        let avatar = getAvatarUrl(s.nama);
+        let nominalKas = isLunas ? `Rp ${Number(transaksiMingguIni.nominal).toLocaleString('id-ID')}` : 'Rp 0';
+
+        html += `
+            <tr class="hover:bg-slate-50/80 transition-all">
+                <td class="py-3 px-3 text-center font-bold text-slate-500">${s.absen}</td>
+                <td class="py-3 px-3">
+                    <div class="flex items-center gap-3">
+                        <img src="${avatar}" alt="Avatar" class="w-7 h-7 rounded-full object-cover border border-slate-200 bg-slate-100 shadow-2xs">
+                        <div>
+                            <div class="font-semibold text-slate-900">${s.nama}</div>
+                            <span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold border ${titleObj.class}">${titleObj.text}</span>
+                        </div>
+                    </div>
+                </td>
+                <td class="py-3 px-3 font-semibold text-slate-900">${nominalKas}</td>
+                <td class="py-3 px-3">${metodeBadge}</td>
+                <td class="py-3 px-3 text-center">${statusBadge}</td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = html;
+}
+
+function loadDataIuran() {
+    const tbody = document.getElementById('tabel-iuran-body');
+    if(!tbody) return;
+
+    if(iuranData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400 font-medium">Belum ada data iuran khusus</td></tr>`;
+        return;
+    }
+
+    let html = '';
+    iuranData.forEach(item => {
+        let metodeBadge = item.metode === 'Digital' ? '<span class="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-semibold">💳 Digital</span>' : '<span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-semibold">💵 Cash</span>';
+        let iuranBadge = `<span class="bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-1 rounded-md text-xs font-semibold">${item.namaIuran || 'Iuran'}</span>`;
+
+        html += `
+            <tr class="hover:bg-slate-50/80 transition-all">
+                <td class="py-3.5 px-4 text-center font-bold text-slate-500">${item.absen || '-'}</td>
+                <td class="py-3.5 px-4 font-semibold text-slate-900">${item.nama}</td>
+                <td class="py-3.5 px-4">${iuranBadge}</td>
+                <td class="py-3.5 px-4 font-semibold text-slate-900">Rp ${Number(item.nominal).toLocaleString('id-ID')}</td>
+                <td class="py-3.5 px-4">${metodeBadge}</td>
+                <td class="py-3.5 px-4 text-center"><span class="bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded text-[10px] font-semibold">Lunas</span></td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = html;
+}
+
+function loadDataPengeluaran() {
+    const tbody = document.getElementById('tabel-pengeluaran-body');
+    if(!tbody) return;
+
+    if(pengeluaranData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" class="text-center py-6 text-slate-400 font-medium">Belum ada catatan pengeluaran kelas</td></tr>`;
+        return;
+    }
+
+    let html = '';
+    pengeluaranData.forEach(item => {
+        html += `
+            <tr class="hover:bg-slate-50/80 transition-all">
+                <td class="py-3.5 px-4 font-semibold text-slate-900">${item.keterangan}</td>
+                <td class="py-3.5 px-4 font-bold text-rose-600">Rp ${Number(item.nominal).toLocaleString('id-ID')}</td>
+                <td class="py-3.5 px-4 text-slate-500">${item.tanggal || '-'}</td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = html;
+}
+
+// Render Admin List Siswa
+function renderSiswaAdminList() {
+    sortDataByAbsen();
+    const container = document.getElementById('list-siswa-admin');
+    const countEl = document.getElementById('count-siswa');
+    if(!container) return;
+
+    if(countEl) countEl.innerText = siswaData.length;
+
+    if(siswaData.length === 0) {
+        container.innerHTML = `<div class="text-xs text-slate-400 italic">Belum ada siswa ditambahkan.</div>`;
+        return;
+    }
+
+    let html = '';
+    siswaData.forEach(s => {
+        html += `
+            <div class="flex items-center justify-between p-2 bg-surface rounded-lg border border-bordercol text-xs">
+                <div><span class="font-bold text-accent">Absen ${s.absen}:</span> <span class="font-semibold text-slate-800">${s.nama}</span></div>
+                <div class="space-x-1">
+                    <button onclick="hapusSiswa('${s.id}')" class="text-rose-600 hover:underline text-[10px] font-bold">Hapus</button>
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+function loadDataAdminKas() {
+    sortDataByAbsen();
+    loadAdminStatistics();
+    const tbody = document.getElementById('tabel-admin-kas-body');
+    if(!tbody) return;
+    
+    if(kasData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400 font-medium">Data kas kosong</td></tr>`;
+        return;
+    }
+
+    let html = '';
+    kasData.forEach(item => {
+        let metodeBadge = item.metode === 'Digital' ? '💳 Digital' : '💵 Cash';
+        html += `
+            <tr class="hover:bg-slate-50/80 transition-all">
+                <td class="py-3.5 px-4 text-center font-bold text-slate-500">${item.absen || '-'}</td>
+                <td class="py-3.5 px-4 font-semibold text-slate-900">${item.nama}</td>
+                <td class="py-3.5 px-4 font-semibold text-slate-900">Rp ${Number(item.nominal).toLocaleString('id-ID')}</td>
+                <td class="py-3.5 px-4 font-medium text-slate-700">${metodeBadge}</td>
+                <td class="py-3.5 px-4 text-slate-500">${item.tanggal} (${item.minggu})</td>
+                <td class="py-3.5 px-4 text-center space-x-2">
+                    <button onclick="hapusDataKas('${item.id}')" class="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all">Hapus</button>
+                </td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = html;
+}
+
+function loadDataAdminIuran() {
+    sortDataByAbsen();
+    loadAdminStatistics();
+    const tbody = document.getElementById('tabel-admin-iuran-body');
+    if(!tbody) return;
+    
+    if(iuranData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400 font-medium">Data iuran khusus kosong</td></tr>`;
+        return;
+    }
+
+    let html = '';
+    iuranData.forEach(item => {
+        let iuranBadge = `<span class="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded text-xs font-semibold">${item.namaIuran}</span>`;
+        let metodeBadge = item.metode === 'Digital' ? '💳 Digital' : '💵 Cash';
+
+        html += `
+            <tr class="hover:bg-slate-50/80 transition-all">
+                <td class="py-3.5 px-4 text-center font-bold text-slate-500">${item.absen || '-'}</td>
+                <td class="py-3.5 px-4 font-semibold text-slate-900">${item.nama}</td>
+                <td class="py-3.5 px-4">${iuranBadge}</td>
+                <td class="py-3.5 px-4 font-semibold text-slate-900">Rp ${Number(item.nominal).toLocaleString('id-ID')}</td>
+                <td class="py-3.5 px-4 font-medium text-slate-700">${metodeBadge}</td>
+                <td class="py-3.5 px-4 text-center space-x-2">
+                    <button onclick="hapusDataIuran('${item.id}')" class="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all">Hapus</button>
+                </td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = html;
+}
+
+function loadDataAdminPengeluaran() {
+    loadAdminStatistics();
+    const tbody = document.getElementById('tabel-admin-pengeluaran-body');
+    if(!tbody) return;
+
+    if(pengeluaranData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-slate-400 font-medium">Belum ada pengeluaran</td></tr>`;
+        return;
+    }
+
+    let html = '';
+    pengeluaranData.forEach(item => {
+        html += `
+            <tr class="hover:bg-slate-50/80 transition-all">
+                <td class="py-3.5 px-4 font-semibold text-slate-900">${item.keterangan}</td>
+                <td class="py-3.5 px-4 font-bold text-rose-600">Rp ${Number(item.nominal).toLocaleString('id-ID')}</td>
+                <td class="py-3.5 px-4 text-slate-500">${item.tanggal || '-'}</td>
+                <td class="py-3.5 px-4 text-center">
+                    <button onclick="hapusPengeluaran('${item.id}')" class="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all">Hapus</button>
+                </td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = html;
+}
+
+async function simpanDataSiswa(e) {
+    e.preventDefault();
+    if (!window._supabaseClient) {
+        alert('Koneksi Supabase belum siap!');
+        return;
+    }
+
+    let absen = Number(document.getElementById('siswa-absen').value);
+    let nama = document.getElementById('siswa-nama').value.trim();
+
+    let payload = { id: 'sis_' + Date.now(), absen, nama };
+    let { error } = await window._supabaseClient.from('siswa').insert([payload]);
+
+    if (error) {
+        console.error("Gagal simpan siswa:", error);
+        alert("Gagal menyimpan ke Supabase: " + error.message);
+        return;
+    }
+
+    siswaData.push(payload);
+    document.getElementById('siswa-absen').value = '';
+    document.getElementById('siswa-nama').value = '';
+    
+    populateSiswaDropdown();
+    renderSiswaAdminList();
+    alert('Siswa berhasil ditambahkan!');
 }
 
 async function hapusSiswa(id) {
-    if(confirm('Hapus siswa ini?')) { 
-        dataSiswa = dataSiswa.filter(s=>s.id !== id); 
-        await saveData('XIDKV1_Siswa', dataSiswa, 'siswa'); 
-        if (useCloud && supabaseClient) { try { await supabaseClient.from('siswa').delete().eq('id', id); } catch(e) {} }
-        renderAll(); showToast('Dihapus.'); 
-    }
-}
-
-function openPaymentModal() {
-    let sel = document.getElementById('pay-siswa-id'); 
-    if (sel) { sel.innerHTML=''; dataSiswa.forEach(s => { if (s) sel.innerHTML += `<option value="${s.id}">${s.nama}</option>`; }); }
-    document.getElementById('pay-date').value = new Date().toISOString().split('T')[0];
-    document.getElementById('pay-amount').value = ''; document.getElementById('pay-uang-diterima').value = ''; 
-    document.getElementById('pay-kembalian').innerText = 'Kembalian: Rp 0';
-    openModal('payment-modal');
-}
-
-document.getElementById('pay-uang-diterima')?.addEventListener('input', (e) => {
-    let r = e.target.value; let a = document.getElementById('pay-amount').value; let kc = document.getElementById('pay-kembalian');
-    if(kc && r && a) { 
-        let c = Number(r) - Number(a); 
-        kc.innerText = c >= 0 ? `Kembalian: ${formatRp(c)}` : `Kurang: ${formatRp(Math.abs(c))}`; 
-        kc.style.color = c >= 0 ? 'var(--success)' : 'var(--danger)'; 
-    }
-});
-
-async function prosesTambahCicilan() {
-    let id = Number(document.getElementById('pay-siswa-id').value); 
-    let am = Number(document.getElementById('pay-amount').value); 
-    let dt = document.getElementById('pay-date').value; 
-    let sum = document.getElementById('pay-sumber').value; 
-    let tal = document.getElementById('pay-talangan').checked;
-    if(!am || am <= 0 || !dt) return showToast('Nominal tidak valid','error');
-    
-    let s = dataSiswa.find(x=>x.id === id);
-    if(s) { 
-        if(!s.payments || !Array.isArray(s.payments)) s.payments = []; 
-        s.payments.push({ id: 'pay_' + Date.now(), date: dt, amount: am, sumber: sum, talangan: tal }); 
-        await saveData('XIDKV1_Siswa', dataSiswa, 'siswa'); closeModal('payment-modal'); renderAll(); 
-        logAudit('KAS MASUK', `${s.nama} ${formatRp(am)}`); showToast('Tersimpan!'); 
-    }
-}
-
-function openExpenseModal() { 
-    document.getElementById('exp-date').value = new Date().toISOString().split('T')[0]; 
-    document.getElementById('exp-amount').value = ''; document.getElementById('exp-desc').value = ''; document.getElementById('exp-bukti').value = ''; 
-    openModal('expense-modal'); 
-}
-
-async function prosesTambahPengeluaran() {
-    let d = document.getElementById('exp-desc').value.trim();
-    let a = Number(document.getElementById('exp-amount').value);
-    let dt = document.getElementById('exp-date').value;
-    let k = document.getElementById('exp-kategori').value;
-    let s = document.getElementById('exp-sumber').value;
-    let b = document.getElementById('exp-bukti').value.trim();
-    if(!d || a <= 0 || !dt) return showToast('Lengkapi data!','error');
-    
-    dataPengeluaran.push({id:Date.now(), desc:d, amount:a, date:dt, kategori:k, sumber:s, bukti:b}); 
-    await saveData('XIDKV1_Exp', dataPengeluaran, 'pengeluaran'); closeModal('expense-modal'); renderAll(); 
-    logAudit('KAS KELUAR', `${k} - ${formatRp(a)}`); showToast('Dicatat!');
-}
-
-async function hapusEx(id) { 
-    if(confirm('Hapus?')) { 
-        dataPengeluaran = dataPengeluaran.filter(e=>e.id !== id); 
-        await saveData('XIDKV1_Exp', dataPengeluaran, 'pengeluaran'); 
-        if (useCloud && supabaseClient) { try { await supabaseClient.from('pengeluaran').delete().eq('id', id); } catch(e) {} }
-        renderAll(); showToast('Dihapus'); 
-    } 
-}
-
-function openPemasukanLainModal() { 
-    document.getElementById('lain-amount').value = ''; document.getElementById('lain-desc').value = ''; 
-    openModal('lain-modal'); 
-}
-
-async function prosesTambahLain() {
-    let d = document.getElementById('lain-desc').value.trim();
-    let a = Number(document.getElementById('lain-amount').value);
-    let s = document.getElementById('lain-sumber').value;
-    if(!d || a <= 0) return showToast('Invalid!','error');
-    
-    dataPemasukanLain.push({id:Date.now(), desc:d, nominal:a, sumber:s, tanggal:new Date().toISOString().split('T')[0]}); 
-    await saveData('XIDKV1_Lain', dataPemasukanLain, 'pemasukan_lain'); closeModal('lain-modal'); renderAll(); 
-    logAudit('KAS LAIN', `${d} - ${formatRp(a)}`); showToast('Disimpan!');
-}
-
-async function simpanPengumuman() {
-    let p = document.getElementById('input-pengumuman').value.trim(); if(!p) return showToast('Kosong!', 'error');
-    pengumumanKelas = p; localStorage.setItem('XIDKV1_Ann', p); 
-    if(useCloud && supabaseClient) await supabaseClient.from('pengumuman').upsert({id:1, pesan:p});
-    document.getElementById('announcement-text').innerText = p; showToast('Diupdate!');
-}
-
-async function simpanTargetProyek() {
-    let title = document.getElementById('input-goal-title').value.trim();
-    let target = Number(document.getElementById('input-goal-target').value);
-    if(!title || target < 0) return showToast('Data target proyek tidak valid!', 'error');
-    classGoal = { title, target };
-    localStorage.setItem('XIDKV1_Goal', JSON.stringify(classGoal));
-    renderGoalWidget(); showToast('Target Proyek Diupdate!');
-}
-
-function openSplitterModal() { openModal('splitter-modal'); }
-function hitungPatungan() {
-    let tot = Number(document.getElementById('split-total').value);
-    let cnt = Number(document.getElementById('split-count').value);
-    if(!tot || !cnt || cnt <= 0) return showToast('Masukkan data valid!', 'error');
-    document.getElementById('split-result').innerText = formatRp(Math.ceil(tot / cnt));
-}
-
-function lihatProfil(id) {
-    currentProfileId = id; let s = dataSiswa.find(x=>x.id === id); if(!s) return;
-    let tot = calcTotal(s.payments); let weekly = getEffectiveMonthlyStatus(s, globalYear, globalMonth);
-    
-    document.getElementById('profil-avatar').src = generateAvatar(s.nama); 
-    document.getElementById('profil-nama').innerText = s.nama;
-    document.getElementById('profil-gamifikasi').innerText = getGamifikasi(tot, s.payments.length);
-    document.getElementById('profil-total').innerText = formatRp(tot); 
-    
-    let monthlyTarget = getMonthTarget(globalYear, globalMonth);
-    let sisaKurang = monthlyTarget - weekly.totalBulan;
-    document.getElementById('profil-sisa').innerText = sisaKurang <= 0 ? 'LUNAS (FULL)' : formatRp(sisaKurang);
-    document.getElementById('profil-sisa').style.color = sisaKurang <= 0 ? 'var(--success)' : 'var(--danger)';
-    document.getElementById('profil-status-badge').innerHTML = sisaKurang <= 0 ? `<span class="badge badge-lunas">LUNAS BULAN INI</span>` : `<span class="badge badge-belum">BELUM FULL</span>`;
-
-    const monthsNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-    document.getElementById('profil-bulan-label').innerText = `${monthsNames[globalMonth - 1]} ${globalYear}`;
-
-    let weeklyListEl = document.getElementById('profil-weekly-list'); weeklyListEl.innerHTML = '';
-    weekly.weeks.forEach((w, idx) => {
-        if (w.status === 'off') {
-            weeklyListEl.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background: var(--bg-color); padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border-color); font-size:0.85rem; opacity: 0.5;"><b>${w.name}</b><span style="font-weight:800; color: var(--text-muted);">Belum Mulai</span></div>`;
-        } else {
-            let statusText = w.status === 'lunas' ? 'Lunas (Rp 3.000)' : w.status === 'kurang' ? `Kurang (${formatRp(3000 - w.paid)})` : 'Belum Bayar';
-            weeklyListEl.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background: var(--bg-color); padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border-color); font-size:0.85rem;"><b>${w.name}</b><span style="font-weight:800; color: ${w.status === 'lunas' ? 'var(--success)' : w.status === 'kurang' ? 'var(--warning)' : 'var(--danger)'};">${statusText}</span></div>`;
+    if(confirm('Hapus siswa ini dari daftar?')) {
+        let { error } = await window._supabaseClient.from('siswa').delete().eq('id', id);
+        if (error) {
+            alert("Gagal menghapus: " + error.message);
+            return;
         }
-    });
-    
-    let hl = document.getElementById('history-list'); hl.innerHTML = '';
-    let isAdminLoggedIn = document.getElementById('admin-panel')?.style.display !== 'none';
-    s.payments?.slice().reverse().forEach((p, index) => { 
-        if (p) {
-            if (!p.id) p.id = 'pay_fallback_' + index;
-            let deleteBtn = isAdminLoggedIn ? `<button class="btn btn-danger btn-icon-only" style="width:28px; height:28px; padding:0;" onclick="hapusSetoranSiswa(${s.id}, '${p.id}')"><i data-lucide="trash-2" style="width:14px; height:14px;"></i></button>` : '';
-            hl.innerHTML += `<li class="history-item" style="display:flex; justify-content:space-between; align-items:center;"><div><b style="font-size:0.9rem;">${p.date}</b>${p.talangan ? '<br><span class="badge badge-talangan" style="padding:2px 6px; font-size:0.6rem;">Talangan</span>' : ''}</div><div style="display:flex; align-items:center; gap:12px;"><div class="money-blur" style="color:var(--primary); font-weight:900;">${formatRp(p.amount)}</div>${deleteBtn}</div></li>`; 
-        }
-    });
-    if (hl.innerHTML === '') hl.innerHTML = `<li style="text-align:center; padding: 20px; color:var(--text-muted);">Belum ada riwayat setoran.</li>`;
-    openModal('student-modal'); lucide.createIcons();
-}
-
-async function hapusSetoranSiswa(studentId, paymentId) {
-    if (!confirm('Yakin ingin menghapus setoran ini?')) return;
-    let s = dataSiswa.find(x => x.id === studentId);
-    if (s && Array.isArray(s.payments)) {
-        s.payments = s.payments.filter(p => p && String(p.id) !== String(paymentId));
-        await saveData('XIDKV1_Siswa', dataSiswa, 'siswa');
-        logAudit('HAPUS SETORAN', `Menghapus riwayat setoran siswa: ${s.nama}`);
-        showToast('Setoran berhasil dihapus!', 'success');
-        renderAll(); lihatProfil(studentId); 
+        siswaData = siswaData.filter(s => String(s.id) !== String(id));
+        populateSiswaDropdown();
+        renderSiswaAdminList();
     }
 }
 
-function cetakKwitansi() {
-    if(!currentProfileId) return; 
-    let s = dataSiswa.find(x=>x.id === currentProfileId); 
-    if(!s || !s.payments?.length) return showToast('Belum ada setoran', 'error');
-    closeModal('student-modal'); document.body.classList.add('printing-kwitansi'); 
-    window.print(); setTimeout(()=>document.body.classList.remove('printing-kwitansi'), 1000);
-}
+async function simpanDataPemasukan(e) {
+    e.preventDefault();
+    if (!window._supabaseClient) {
+        alert('Koneksi Supabase belum siap!');
+        return;
+    }
 
-function printOfficialReport() {
-    let totMasuk = dataSiswa.reduce((sum,s)=>sum+calcTotal(s.payments),0);
-    let totKeluar = dataPengeluaran.reduce((sum,e)=>sum+Number(e.amount||0),0);
+    const selectSiswa = document.getElementById('input-siswa-select').value;
+    if(!selectSiswa) {
+        alert('Silakan pilih siswa terlebih dahulu!');
+        return;
+    }
+
+    let siswaObj = siswaData.find(s => Number(s.absen) === Number(selectSiswa));
+    const absen = siswaObj.absen;
+    const nama = siswaObj.nama;
+
+    const tipe = document.getElementById('input-tipe').value;
+    const namaIuran = document.getElementById('input-nama-iuran').value;
+    const nominal = Number(document.getElementById('input-nominal').value);
+    const metode = document.getElementById('input-metode').value;
+    const tanggal = document.getElementById('input-tanggal').value;
     
-    document.getElementById('print-rep-masuk').innerText = formatRp(totMasuk);
-    document.getElementById('print-rep-keluar').innerText = formatRp(totKeluar);
-    document.getElementById('print-rep-saldo').innerText = formatRp(totMasuk - totKeluar);
-    document.getElementById('print-rep-tgl').innerText = new Date().toLocaleDateString('id-ID');
+    let tanggalObj = new Date(tanggal);
+    let mingguTransaksi = getIsoWeek(tanggalObj);
 
-    document.body.classList.add('printing-official');
-    window.print(); setTimeout(()=>document.body.classList.remove('printing-official'), 1000);
-}
-
-function printReport() { printOfficialReport(); }
-
-function exportMatrixExcel() {
-    let d = [["No", "Nama", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des", "Total"]];
-    dataSiswa.forEach((s,i) => { 
-        if (!s) return;
-        let allocations = getAllMonthsAllocation(s);
-        let mt = []; for (let m = 1; m <= 12; m++) mt.push(allocations[`${globalYear}-${String(m).padStart(2, '0')}`] || 0);
-        d.push([i+1, s.nama, ...mt, calcTotal(s.payments)]); 
-    });
-    let wb = XLSX.utils.book_new(); 
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(d), "Matriks"); 
-    XLSX.writeFile(wb, `Matriks_Rollover_${globalYear}.xlsx`); showToast('Excel diunduh!');
-}
-
-function generateBroadcastWA() {
-    let mTarget = getMonthTarget(globalYear, globalMonth); let b = []; 
-    dataSiswa.forEach(s => { 
-        if (s) {
-            let krg = mTarget - getEffectiveMonthlyStatus(s, globalYear, globalMonth).totalBulan;
-            if(krg > 0) b.push(`- ${s.nama} (Kurang ${formatRp(krg)})`); 
+    if (tipe === 'Kas') {
+        let payload = { id: Date.now().toString(), absen, nama, nominal, metode, tanggal, minggu: mingguTransaksi };
+        let { error } = await window._supabaseClient.from('kas').insert([payload]);
+        if (error) {
+            alert("Gagal simpan kas ke Supabase: " + error.message);
+            return;
         }
-    });
-    if(b.length === 0) return showToast('Semua lunas full!', 'success');
-    let ta = document.getElementById('hidden-copy-area'); 
-    ta.value = `📢 *TAGIHAN KAS KELAS*\n\nBelum lunas:\n${b.join('\n')}\n\nSegera dilunasi ya. Thanks!`;
-    ta.select(); document.execCommand('copy'); showToast('Teks dicopy ke clipboard!');
+        kasData.push(payload);
+        alert('Data uang kas berhasil disimpan.');
+        loadDataAdminKas();
+    } else {
+        let payload = { id: 'iur_' + Date.now(), absen, nama, namaIuran, nominal, metode, tanggal };
+        let { error } = await window._supabaseClient.from('iuran').insert([payload]);
+        if (error) {
+            alert("Gagal simpan iuran ke Supabase: " + error.message);
+            return;
+        }
+        iuranData.push(payload);
+        alert('Data iuran khusus berhasil disimpan.');
+        loadDataAdminIuran();
+    }
+
+    resetForm();
+    loadAdminStatistics();
+    checkAndProcessAutoMonthlyArchive();
 }
 
-function undianLunas() { 
-    openModal('undian-modal'); document.getElementById('undian-name').innerText = "Siapa yang beruntung?"; 
+async function simpanDataPengeluaran(e) {
+    e.preventDefault();
+    const keterangan = document.getElementById('exp-keterangan').value;
+    const nominal = Number(document.getElementById('exp-nominal').value);
+    const tanggal = document.getElementById('exp-tanggal').value;
+
+    let payload = { id: 'e_' + Date.now(), keterangan, nominal, tanggal };
+    let { error } = await window._supabaseClient.from('pengeluaran').insert([payload]);
+    if (error) {
+        alert("Gagal simpan pengeluaran: " + error.message);
+        return;
+    }
+    pengeluaranData.push(payload);
+
+    document.getElementById('form-pengeluaran').reset();
+    alert('Catatan pengeluaran berhasil disimpan.');
+    loadDataAdminPengeluaran();
+    loadAdminStatistics();
+    checkAndProcessAutoMonthlyArchive();
 }
 
-function mulaiUndian() {
-    let lunas = dataSiswa.filter(s => s && getEffectiveMonthlyStatus(s, globalYear, globalMonth).totalBulan >= getMonthTarget(globalYear, globalMonth));
-    if(lunas.length === 0) return showToast('Belum ada yang lunas full bulan ini!', 'error');
-    let box = document.getElementById('undian-name'); let count = 0; 
-    let interval = setInterval(() => { 
-        box.innerText = lunas[Math.floor(Math.random() * lunas.length)].nama; 
-        if(++count > 25) { clearInterval(interval); box.innerHTML = `🎉 ${lunas[Math.floor(Math.random() * lunas.length)].nama} 🎉`; } 
-    }, 80);
+async function hapusDataKas(id) {
+    if(confirm('Hapus transaksi kas ini?')) {
+        await window._supabaseClient.from('kas').delete().eq('id', id);
+        kasData = kasData.filter(item => String(item.id) !== String(id));
+        loadDataAdminKas();
+        loadAdminStatistics();
+    }
 }
 
-async function tutupBuku() {
-    if(!confirm("Yakin tutup buku? Semua riwayat setoran akan direset.")) return;
-    dataSiswa.forEach(s => { if (s) s.payments = []; }); 
-    dataPengeluaran = []; dataPemasukanLain = []; dataAudit = [];
-    await saveData('XIDKV1_Siswa', dataSiswa, 'siswa'); 
-    await saveData('XIDKV1_Exp', dataPengeluaran, 'pengeluaran'); 
-    await saveData('XIDKV1_Lain', dataPemasukanLain, 'pemasukan_lain');
-    localStorage.removeItem('XIDKV1_Audit'); window.location.reload();
+async function hapusDataIuran(id) {
+    if(confirm('Hapus transaksi iuran khusus ini?')) {
+        await window._supabaseClient.from('iuran').delete().eq('id', id);
+        iuranData = iuranData.filter(item => String(item.id) !== String(id));
+        loadDataAdminIuran();
+        loadAdminStatistics();
+    }
 }
 
-let catChart = null;
-let initChart = function() {
-    const canvas = document.getElementById('kategoriChart');
-    if (!canvas) return; let cats = {}; 
-    dataPengeluaran.forEach(e => { if (e) cats[e.kategori || 'Lainnya'] = (cats[e.kategori || 'Lainnya'] || 0) + Number(e.amount || 0); });
-    if(Object.keys(cats).length === 0) return;
-    if(catChart) catChart.destroy();
-    catChart = new Chart(canvas.getContext('2d'), { 
-        type: 'doughnut', 
-        data: { labels: Object.keys(cats), datasets: [{ data: Object.values(cats), backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'], borderWidth: 0 }] }, 
-        options: { responsive: true, plugins: { legend: { position: 'bottom' } } } 
-    });
+async function hapusPengeluaran(id) {
+    if(confirm('Hapus catatan pengeluaran ini?')) {
+        await window._supabaseClient.from('pengeluaran').delete().eq('id', id);
+        pengeluaranData = pengeluaranData.filter(item => String(item.id) !== String(id));
+        loadDataAdminPengeluaran();
+        loadAdminStatistics();
+    }
+}
+
+function resetForm() {
+    document.getElementById('form-admin').reset();
+    document.getElementById('edit-id').value = '';
+    toggleNamaIuran();
+}
+
+function resetFormSiswa() {
+    document.getElementById('siswa-absen').value = '';
+    document.getElementById('siswa-nama').value = '';
+}
+
+window.onload = () => {
+    initCalendarDefault();
+    updateWIBClock();
+    setInterval(updateWIBClock, 1000);
+    hitungPatungan();
 };

@@ -2,9 +2,8 @@
 const SUPABASE_URL = 'https://dyisevuroujenyqhhwmu.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR5aXNldnVyb3VqZW55cWhod211Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzOTgyNTQsImV4cCI6MjEwMDk3NDI1NH0.IGn1ExMUo-zpKqlLULskB2TftHpv5AOmoYIuiVzEvvs';
 
-// Inisialisasi Klien Supabase secara langsung & aman
+// Inisialisasi Klien Supabase
 const _supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-window._supabaseClient = _supabaseClient;
 
 // Default Data 39 Siswa XI DKV 1
 let defaultSiswaData = [
@@ -49,24 +48,12 @@ let defaultSiswaData = [
     { id: "sis_39", absen: 39, nama: "ZULFHAN BAIHAQI GUNAWAN" }
 ];
 
-// Ambil data dari LocalStorage browser
-let siswaData = JSON.parse(localStorage.getItem('kas_dkv1_siswa')) || defaultSiswaData;
-let kasData = JSON.parse(localStorage.getItem('kas_dkv1_kas')) || [];
-let iuranData = JSON.parse(localStorage.getItem('kas_dkv1_iuran')) || [];
-let pengeluaranData = JSON.parse(localStorage.getItem('kas_dkv1_pengeluaran')) || [];
+let siswaData = [];
+let kasData = [];
+let iuranData = [];
+let pengeluaranData = [];
 
 let isAdminLoggedIn = localStorage.getItem('kas_dkv1_admin_logged') === 'true';
-
-function saveToLocalStorage() {
-    try {
-        localStorage.setItem('kas_dkv1_siswa', JSON.stringify(siswaData));
-        localStorage.setItem('kas_dkv1_kas', JSON.stringify(kasData));
-        localStorage.setItem('kas_dkv1_iuran', JSON.stringify(iuranData));
-        localStorage.setItem('kas_dkv1_pengeluaran', JSON.stringify(pengeluaranData));
-    } catch (e) {
-        console.error("Gagal menyimpan ke localStorage:", e);
-    }
-}
 
 function getIsoWeek(date) {
     try {
@@ -143,20 +130,41 @@ function updateWIBClock() {
     }
 }
 
-function initAppFromLocal() {
+async function initAppFromSupabase() {
     try {
-        updateNavAuthButton();
-        populateSiswaDropdown();
-        renderSiswaAdminList();
-        loadDataKas();
-        loadDataIuran();
-        loadDataPengeluaran();
-        renderRanking();
-        initCalendarDefault();
-        checkAndProcessAutoMonthlyArchive();
-    } catch (e) {
-        console.error("Error initApp:", e);
+        let resSiswa = await _supabaseClient.from('siswa').select('*');
+        if (!resSiswa.error && resSiswa.data && resSiswa.data.length > 0) {
+            siswaData = resSiswa.data;
+        } else {
+            siswaData = defaultSiswaData;
+            for (let s of defaultSiswaData) {
+                await _supabaseClient.from('siswa').upsert(s);
+            }
+        }
+
+        let resKas = await _supabaseClient.from('kas').select('*');
+        if (resKas.data) kasData = resKas.data;
+
+        let resIuran = await _supabaseClient.from('iuran').select('*');
+        if (resIuran.data) iuranData = resIuran.data;
+
+        let resExp = await _supabaseClient.from('pengeluaran').select('*');
+        if (resExp.data) pengeluaranData = resExp.data;
+
+    } catch (err) {
+        console.warn("Gagal load supabase, menggunakan default siswa:", err);
+        siswaData = defaultSiswaData;
     }
+
+    updateNavAuthButton();
+    populateSiswaDropdown();
+    renderSiswaAdminList();
+    loadDataKas();
+    loadDataIuran();
+    loadDataPengeluaran();
+    renderRanking();
+    initCalendarDefault();
+    checkAndProcessAutoMonthlyArchive();
 }
 
 function checkAndProcessAutoMonthlyArchive() {
@@ -783,15 +791,16 @@ function loadDataAdminPengeluaran() {
     tbody.innerHTML = html;
 }
 
-function simpanDataSiswa(e) {
+async function simpanDataSiswa(e) {
     if(e) e.preventDefault();
     let absen = Number(document.getElementById('siswa-absen').value);
     let nama = document.getElementById('siswa-nama').value.trim();
     let payload = { id: 'sis_' + Date.now(), absen, nama };
-    
-    siswaData.push(payload);
-    saveToLocalStorage();
 
+    let { error } = await _supabaseClient.from('siswa').insert([payload]);
+    if (error) { alert("Gagal simpan siswa ke Supabase: " + error.message); return; }
+
+    siswaData.push(payload);
     if(document.getElementById('siswa-absen')) document.getElementById('siswa-absen').value = '';
     if(document.getElementById('siswa-nama')) document.getElementById('siswa-nama').value = '';
     populateSiswaDropdown();
@@ -799,16 +808,17 @@ function simpanDataSiswa(e) {
     alert('Siswa berhasil ditambahkan!');
 }
 
-function hapusSiswa(id) {
+async function hapusSiswa(id) {
     if(confirm('Hapus siswa ini dari daftar?')) {
+        let { error } = await _supabaseClient.from('siswa').delete().eq('id', id);
+        if (error) { alert("Gagal menghapus: " + error.message); return; }
         siswaData = siswaData.filter(s => String(s.id) !== String(id));
-        saveToLocalStorage();
         populateSiswaDropdown();
         renderSiswaAdminList();
     }
 }
 
-function simpanDataPemasukan(e) {
+async function simpanDataPemasukan(e) {
     if(e) e.preventDefault();
     const selectSiswa = document.getElementById('input-siswa-select').value;
     if(!selectSiswa) { alert('Silakan pilih siswa terlebih dahulu!'); return; }
@@ -825,14 +835,16 @@ function simpanDataPemasukan(e) {
 
     if (tipe === 'Kas') {
         let payload = { id: Date.now().toString(), absen, nama, nominal, metode, tanggal, minggu: mingguTransaksi };
+        let { error } = await _supabaseClient.from('kas').insert([payload]);
+        if (error) { alert("Gagal simpan kas: " + error.message); return; }
         kasData.push(payload);
-        saveToLocalStorage();
         alert('Data uang kas berhasil disimpan.');
         loadDataAdminKas();
     } else {
         let payload = { id: 'iur_' + Date.now(), absen, nama, namaIuran, nominal, metode, tanggal };
+        let { error } = await _supabaseClient.from('iuran').insert([payload]);
+        if (error) { alert("Gagal simpan iuran: " + error.message); return; }
         iuranData.push(payload);
-        saveToLocalStorage();
         alert('Data iuran khusus berhasil disimpan.');
         loadDataAdminIuran();
     }
@@ -842,16 +854,17 @@ function simpanDataPemasukan(e) {
     checkAndProcessAutoMonthlyArchive();
 }
 
-function simpanDataPengeluaran(e) {
+async function simpanDataPengeluaran(e) {
     if(e) e.preventDefault();
     const keterangan = document.getElementById('exp-keterangan').value;
     const nominal = Number(document.getElementById('exp-nominal').value);
     const tanggal = document.getElementById('exp-tanggal').value;
     let payload = { id: 'e_' + Date.now(), keterangan, nominal, tanggal };
-    
-    pengeluaranData.push(payload);
-    saveToLocalStorage();
 
+    let { error } = await _supabaseClient.from('pengeluaran').insert([payload]);
+    if (error) { alert("Gagal simpan pengeluaran: " + error.message); return; }
+
+    pengeluaranData.push(payload);
     if(document.getElementById('form-pengeluaran')) document.getElementById('form-pengeluaran').reset();
     alert('Catatan pengeluaran berhasil disimpan.');
     loadDataAdminPengeluaran();
@@ -859,28 +872,31 @@ function simpanDataPengeluaran(e) {
     checkAndProcessAutoMonthlyArchive();
 }
 
-function hapusDataKas(id) {
+async function hapusDataKas(id) {
     if(confirm('Hapus transaksi kas ini?')) {
+        let { error } = await _supabaseClient.from('kas').delete().eq('id', id);
+        if (error) { alert("Gagal menghapus: " + error.message); return; }
         kasData = kasData.filter(item => String(item.id) !== String(id));
-        saveToLocalStorage();
         loadDataAdminKas();
         loadAdminStatistics();
     }
 }
 
-function hapusDataIuran(id) {
+async function hapusDataIuran(id) {
     if(confirm('Hapus transaksi iuran khusus ini?')) {
+        let { error } = await _supabaseClient.from('iuran').delete().eq('id', id);
+        if (error) { alert("Gagal menghapus: " + error.message); return; }
         iuranData = iuranData.filter(item => String(item.id) !== String(id));
-        saveToLocalStorage();
         loadDataAdminIuran();
         loadAdminStatistics();
     }
 }
 
-function hapusPengeluaran(id) {
+async function hapusPengeluaran(id) {
     if(confirm('Hapus catatan pengeluaran ini?')) {
+        let { error } = await _supabaseClient.from('pengeluaran').delete().eq('id', id);
+        if (error) { alert("Gagal menghapus: " + error.message); return; }
         pengeluaranData = pengeluaranData.filter(item => String(item.id) !== String(id));
-        saveToLocalStorage();
         loadDataAdminPengeluaran();
         loadAdminStatistics();
     }
@@ -902,7 +918,7 @@ window.onload = () => {
         updateWIBClock();
         setInterval(updateWIBClock, 1000);
         hitungPatungan();
-        initAppFromLocal();
+        initAppFromSupabase();
     } catch (e) {
         console.error("Error onload:", e);
     }

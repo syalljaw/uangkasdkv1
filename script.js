@@ -49,25 +49,44 @@ let defaultSiswaData = [
     { id: "sis_39", absen: 39, nama: "ZULFHAN BAIHAQI GUNAWAN" }
 ];
 
-let siswaData = [];
-let kasData = [];
-let iuranData = [];
-let pengeluaranData = [];
+let siswaData = JSON.parse(localStorage.getItem('kas_dkv1_siswa')) || defaultSiswaData;
+let kasData = JSON.parse(localStorage.getItem('kas_dkv1_kas')) || [];
+let iuranData = JSON.parse(localStorage.getItem('kas_dkv1_iuran')) || [];
+let pengeluaranData = JSON.parse(localStorage.getItem('kas_dkv1_pengeluaran')) || [];
 
 let isAdminLoggedIn = localStorage.getItem('kas_dkv1_admin_logged') === 'true';
 
+function saveToLocalStorage() {
+    try {
+        localStorage.setItem('kas_dkv1_siswa', JSON.stringify(siswaData));
+        localStorage.setItem('kas_dkv1_kas', JSON.stringify(kasData));
+        localStorage.setItem('kas_dkv1_iuran', JSON.stringify(iuranData));
+        localStorage.setItem('kas_dkv1_pengeluaran', JSON.stringify(pengeluaranData));
+    } catch (e) {
+        console.error("Gagal menyimpan ke localStorage:", e);
+    }
+}
+
 function getIsoWeek(date) {
-    let d = new Date(date.getTime());
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() + 4 - (d.getDay() || 7));
-    let yearStart = new Date(d.getFullYear(), 0, 1);
-    let weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-    return `${d.getFullYear()}-W${weekNo}`;
+    try {
+        let d = new Date(date.getTime());
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+        let yearStart = new Date(d.getFullYear(), 0, 1);
+        let weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        return `${d.getFullYear()}-W${weekNo}`;
+    } catch (e) {
+        return "2026-W01";
+    }
 }
 
 function getCurrentIsoWeek() {
-    let nowWIB = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
-    return getIsoWeek(nowWIB);
+    try {
+        let nowWIB = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
+        return getIsoWeek(nowWIB);
+    } catch (e) {
+        return "2026-W01";
+    }
 }
 
 function getTotalKasMingguIni(absen, week) {
@@ -78,8 +97,7 @@ function getTotalKasMingguIni(absen, week) {
 
 function updateNavAuthButton() {
     const btnText = document.getElementById('nav-auth-text');
-    if(!btnText) return;
-    btnText.innerText = isAdminLoggedIn ? 'Logout Admin' : 'Login Admin';
+    if(btnText) btnText.innerText = isAdminLoggedIn ? 'Logout Admin' : 'Login Admin';
 }
 
 function handleNavAuthClick() {
@@ -104,87 +122,74 @@ function getUserTitle(totalNominal) {
 }
 
 function updateWIBClock() {
-    const now = new Date();
-    const optionsTime = { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
-    const optionsDate = { timeZone: 'Asia/Jakarta', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    
-    const timeString = new Intl.DateTimeFormat('id-ID', optionsTime).format(now);
-    const dateString = new Intl.DateTimeFormat('id-ID', optionsDate).format(now);
+    try {
+        const now = new Date();
+        const optionsTime = { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+        const optionsDate = { timeZone: 'Asia/Jakarta', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        
+        const timeString = new Intl.DateTimeFormat('id-ID', optionsTime).format(now);
+        const dateString = new Intl.DateTimeFormat('id-ID', optionsDate).format(now);
 
-    const timeEl = document.getElementById('live-time');
-    const dateEl = document.getElementById('live-date');
-    const labelMinggu = document.getElementById('label-minggu-ini');
+        const timeEl = document.getElementById('live-time');
+        const dateEl = document.getElementById('live-date');
+        const labelMinggu = document.getElementById('label-minggu-ini');
 
-    if(timeEl) timeEl.innerText = timeString + ' WIB';
-    if(dateEl) dateEl.innerText = dateString;
-    if(labelMinggu) labelMinggu.innerText = `Periode: ${getCurrentIsoWeek()}`;
+        if(timeEl) timeEl.innerText = timeString + ' WIB';
+        if(dateEl) dateEl.innerText = dateString;
+        if(labelMinggu) labelMinggu.innerText = `Periode: ${getCurrentIsoWeek()}`;
+    } catch (e) {
+        console.error("Error clock:", e);
+    }
 }
 
-async function initAppFromSupabase() {
+function initAppFromLocal() {
     try {
-        let resSiswa = await _supabaseClient.from('siswa').select('*');
-        if (!resSiswa.error && resSiswa.data && resSiswa.data.length > 0) {
-            siswaData = resSiswa.data;
-        } else {
-            siswaData = defaultSiswaData;
-            for (let s of defaultSiswaData) {
-                await _supabaseClient.from('siswa').upsert(s);
-            }
-        }
-
-        let resKas = await _supabaseClient.from('kas').select('*');
-        if (resKas.data) kasData = resKas.data;
-
-        let resIuran = await _supabaseClient.from('iuran').select('*');
-        if (resIuran.data) iuranData = resIuran.data;
-
-        let resExp = await _supabaseClient.from('pengeluaran').select('*');
-        if (resExp.data) pengeluaranData = resExp.data;
-
-    } catch (err) {
-        console.warn("Menggunakan data lokal:", err);
-        siswaData = defaultSiswaData;
+        updateNavAuthButton();
+        populateSiswaDropdown();
+        renderSiswaAdminList();
+        loadDataKas();
+        loadDataIuran();
+        loadDataPengeluaran();
+        renderRanking();
+        initCalendarDefault();
+        checkAndProcessAutoMonthlyArchive();
+    } catch (e) {
+        console.error("Error initApp:", e);
     }
-
-    updateNavAuthButton();
-    populateSiswaDropdown();
-    renderSiswaAdminList();
-    loadDataKas();
-    loadDataIuran();
-    loadDataPengeluaran();
-    renderRanking();
-    renderCalendar();
-    checkAndProcessAutoMonthlyArchive();
 }
 
 function checkAndProcessAutoMonthlyArchive() {
-    let nowWIB = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
-    let currentYearMonth = `${nowWIB.getFullYear()}-${String(nowWIB.getMonth() + 1).padStart(2, '0')}`;
-    let archivedMonths = JSON.parse(localStorage.getItem('kas_dkv1_archives')) || {};
-    let allMonthsSet = new Set();
+    try {
+        let nowWIB = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
+        let currentYearMonth = `${nowWIB.getFullYear()}-${String(nowWIB.getMonth() + 1).padStart(2, '0')}`;
+        let archivedMonths = JSON.parse(localStorage.getItem('kas_dkv1_archives')) || {};
+        let allMonthsSet = new Set();
 
-    kasData.forEach(item => { if(item.tanggal && item.tanggal.length >= 7) allMonthsSet.add(item.tanggal.substring(0, 7)); });
-    iuranData.forEach(item => { if(item.tanggal && item.tanggal.length >= 7) allMonthsSet.add(item.tanggal.substring(0, 7)); });
-    pengeluaranData.forEach(item => { if(item.tanggal && item.tanggal.length >= 7) allMonthsSet.add(item.tanggal.substring(0, 7)); });
+        kasData.forEach(item => { if(item.tanggal && item.tanggal.length >= 7) allMonthsSet.add(item.tanggal.substring(0, 7)); });
+        iuranData.forEach(item => { if(item.tanggal && item.tanggal.length >= 7) allMonthsSet.add(item.tanggal.substring(0, 7)); });
+        pengeluaranData.forEach(item => { if(item.tanggal && item.tanggal.length >= 7) allMonthsSet.add(item.tanggal.substring(0, 7)); });
 
-    Object.keys(archivedMonths).forEach(ym => { if(!allMonthsSet.has(ym)) delete archivedMonths[ym]; });
+        Object.keys(archivedMonths).forEach(ym => { if(!allMonthsSet.has(ym)) delete archivedMonths[ym]; });
 
-    allMonthsSet.forEach(ym => {
-        if(ym < currentYearMonth) {
-            let [y, m] = ym.split('-');
-            let monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-            let labelBulan = `${monthNames[parseInt(m)-1]} ${y}`;
-            let tPemasukan = 0;
-            kasData.forEach(k => { if(k.tanggal && k.tanggal.startsWith(ym)) tPemasukan += Number(k.nominal) || 0; });
-            iuranData.forEach(i => { if(i.tanggal && i.tanggal.startsWith(ym)) tPemasukan += Number(i.nominal) || 0; });
-            let tPengeluaran = 0;
-            pengeluaranData.forEach(e => { if(e.tanggal && e.tanggal.startsWith(ym)) tPengeluaran += Number(e.nominal) || 0; });
-            archivedMonths[ym] = { periode: labelBulan, pemasukan: tPemasukan, pengeluaran: tPengeluaran, saldo: tPemasukan - tPengeluaran };
-        }
-    });
+        allMonthsSet.forEach(ym => {
+            if(ym < currentYearMonth) {
+                let [y, m] = ym.split('-');
+                let monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+                let labelBulan = `${monthNames[parseInt(m)-1]} ${y}`;
+                let tPemasukan = 0;
+                kasData.forEach(k => { if(k.tanggal && k.tanggal.startsWith(ym)) tPemasukan += Number(k.nominal) || 0; });
+                iuranData.forEach(i => { if(i.tanggal && i.tanggal.startsWith(ym)) tPemasukan += Number(i.nominal) || 0; });
+                let tPengeluaran = 0;
+                pengeluaranData.forEach(e => { if(e.tanggal && e.tanggal.startsWith(ym)) tPengeluaran += Number(e.nominal) || 0; });
+                archivedMonths[ym] = { periode: labelBulan, pemasukan: tPemasukan, pengeluaran: tPengeluaran, saldo: tPemasukan - tPengeluaran };
+            }
+        });
 
-    localStorage.setItem('kas_dkv1_archives', JSON.stringify(archivedMonths));
-    renderRekapTable();
+        localStorage.setItem('kas_dkv1_archives', JSON.stringify(archivedMonths));
+        renderRekapTable();
+    } catch (e) {
+        console.error("Error archive:", e);
+    }
 }
 
 function renderRekapTable() {
@@ -233,6 +238,8 @@ function openRekapModal(ym, titleLabel) {
     const container = document.getElementById('rekap-modal-container');
     const titleEl = document.getElementById('rekap-modal-title');
     const contentEl = document.getElementById('rekap-modal-content');
+    if(!modal || !container) return;
+
     titleEl.innerText = `Rincian Arsip: ${titleLabel}`;
 
     let matchedKas = kasData.filter(item => item.tanggal && item.tanggal.startsWith(ym) && Number(item.nominal) > 0);
@@ -275,14 +282,16 @@ function openRekapModal(ym, titleLabel) {
 function closeRekapModal() {
     const modal = document.getElementById('rekap-modal');
     const container = document.getElementById('rekap-modal-container');
+    if(!modal || !container) return;
     container.classList.remove('scale-100', 'opacity-100');
     container.classList.add('scale-95', 'opacity-0');
     setTimeout(() => modal.classList.add('hidden'), 200);
 }
 
 function exportToExcel() {
-    let tableHTML = document.getElementById('excel-table').outerHTML;
-    let excelFile = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>Report</title></head><body><h2>Laporan Keuangan XI DKV 1</h2>${tableHTML}</body></html>`;
+    let tableHTML = document.getElementById('excel-table');
+    if(!tableHTML) return;
+    let excelFile = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>Report</title></head><body><h2>Laporan Keuangan XI DKV 1</h2>${tableHTML.outerHTML}</body></html>`;
     let blob = new Blob([excelFile], { type: 'application/vnd.ms-excel' });
     let url = URL.createObjectURL(blob);
     let a = document.createElement('a');
@@ -334,6 +343,8 @@ function openCalendarModal(dateStr) {
     const container = document.getElementById('cal-modal-container');
     const titleEl = document.getElementById('cal-modal-title');
     const contentEl = document.getElementById('cal-modal-content');
+    if(!modal || !container) return;
+
     let [y, m, d] = dateStr.split('-');
     titleEl.innerText = `Audit Tanggal: ${d} / ${m} / ${y}`;
 
@@ -377,18 +388,23 @@ function openCalendarModal(dateStr) {
 function closeCalendarModal() {
     const modal = document.getElementById('calendar-modal');
     const container = document.getElementById('cal-modal-container');
+    if(!modal || !container) return;
     container.classList.remove('scale-100', 'opacity-100');
     container.classList.add('scale-95', 'opacity-0');
     setTimeout(() => modal.classList.add('hidden'), 200);
 }
 
 function initCalendarDefault() {
-    let nowWIB = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
-    const monthSelect = document.getElementById('cal-month');
-    const yearSelect = document.getElementById('cal-year');
-    if(monthSelect) monthSelect.value = nowWIB.getMonth();
-    if(yearSelect) yearSelect.value = nowWIB.getFullYear();
-    renderCalendar();
+    try {
+        let nowWIB = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
+        const monthSelect = document.getElementById('cal-month');
+        const yearSelect = document.getElementById('cal-year');
+        if(monthSelect) monthSelect.value = nowWIB.getMonth();
+        if(yearSelect) yearSelect.value = nowWIB.getFullYear();
+        renderCalendar();
+    } catch (e) {
+        console.error("Error calendar default:", e);
+    }
 }
 
 function checkAdminAccess() {
@@ -399,9 +415,10 @@ function checkAdminAccess() {
 function openLoginModal() {
     const modal = document.getElementById('login-modal');
     const container = document.getElementById('login-container');
-    document.getElementById('login-user').value = '';
-    document.getElementById('login-pass').value = '';
-    document.getElementById('login-error').classList.add('hidden');
+    if(!modal || !container) return;
+    if(document.getElementById('login-user')) document.getElementById('login-user').value = '';
+    if(document.getElementById('login-pass')) document.getElementById('login-pass').value = '';
+    if(document.getElementById('login-error')) document.getElementById('login-error').classList.add('hidden');
     modal.classList.remove('hidden');
     setTimeout(() => { container.classList.remove('scale-95', 'opacity-0'); container.classList.add('scale-100', 'opacity-100'); }, 10);
 }
@@ -409,15 +426,16 @@ function openLoginModal() {
 function closeLoginModal() {
     const modal = document.getElementById('login-modal');
     const container = document.getElementById('login-container');
+    if(!modal || !container) return;
     container.classList.remove('scale-100', 'opacity-100');
     container.classList.add('scale-95', 'opacity-0');
     setTimeout(() => modal.classList.add('hidden'), 200);
 }
 
 function prosesLoginAdmin(e) {
-    e.preventDefault();
-    let u = document.getElementById('login-user').value.trim();
-    let p = document.getElementById('login-pass').value.trim();
+    if(e) e.preventDefault();
+    let u = document.getElementById('login-user') ? document.getElementById('login-user').value.trim() : '';
+    let p = document.getElementById('login-pass') ? document.getElementById('login-pass').value.trim() : '';
     if(u === 'syallofficial.id' && p === 'irsyal989511') {
         isAdminLoggedIn = true;
         localStorage.setItem('kas_dkv1_admin_logged', 'true');
@@ -425,7 +443,7 @@ function prosesLoginAdmin(e) {
         updateNavAuthButton();
         switchTab('admin');
     } else {
-        document.getElementById('login-error').classList.remove('hidden');
+        if(document.getElementById('login-error')) document.getElementById('login-error').classList.remove('hidden');
     }
 }
 
@@ -443,10 +461,10 @@ function switchTab(tab) {
     const btnAdmin = document.getElementById('btn-admin');
 
     if(tab === 'home') {
-        homeSec.classList.remove('hidden');
-        adminSec.classList.add('hidden');
-        btnHome.className = "px-5 py-2 rounded-lg font-semibold text-xs transition-all bg-accent text-white shadow-sm";
-        btnAdmin.className = "px-5 py-2 rounded-lg font-semibold text-xs text-slate-300 transition-all hover:text-white";
+        if(homeSec) homeSec.classList.remove('hidden');
+        if(adminSec) adminSec.classList.add('hidden');
+        if(btnHome) btnHome.className = "px-5 py-2 rounded-lg font-semibold text-xs transition-all bg-accent text-white shadow-sm";
+        if(btnAdmin) btnAdmin.className = "px-5 py-2 rounded-lg font-semibold text-xs text-slate-300 transition-all hover:text-white";
         loadDataKas();
         loadDataIuran();
         loadDataPengeluaran();
@@ -455,10 +473,10 @@ function switchTab(tab) {
         checkAndProcessAutoMonthlyArchive();
     } else {
         if(!isAdminLoggedIn) { openLoginModal(); return; }
-        homeSec.classList.add('hidden');
-        adminSec.classList.remove('hidden');
-        btnAdmin.className = "px-5 py-2 rounded-lg font-semibold text-xs transition-all bg-accent text-white shadow-sm";
-        btnHome.className = "px-5 py-2 rounded-lg font-semibold text-xs text-slate-300 transition-all hover:text-white";
+        if(homeSec) homeSec.classList.add('hidden');
+        if(adminSec) adminSec.classList.remove('hidden');
+        if(btnAdmin) btnAdmin.className = "px-5 py-2 rounded-lg font-semibold text-xs transition-all bg-accent text-white shadow-sm";
+        if(btnHome) btnHome.className = "px-5 py-2 rounded-lg font-semibold text-xs text-slate-300 transition-all hover:text-white";
         loadAdminStatistics();
         loadDataAdminKas();
         loadDataAdminIuran();
@@ -468,20 +486,23 @@ function switchTab(tab) {
 }
 
 function toggleNamaIuran() {
-    let tipe = document.getElementById('input-tipe').value;
+    let tipe = document.getElementById('input-tipe');
     let wrapper = document.getElementById('wrapper-nama-iuran');
     let inputNamaIuran = document.getElementById('input-nama-iuran');
-    if(tipe === 'Iuran') { wrapper.classList.remove('hidden'); inputNamaIuran.required = true; }
+    if(!tipe || !wrapper || !inputNamaIuran) return;
+    if(tipe.value === 'Iuran') { wrapper.classList.remove('hidden'); inputNamaIuran.required = true; }
     else { wrapper.classList.add('hidden'); inputNamaIuran.required = false; inputNamaIuran.value = ''; }
 }
 
 function hitungPatungan() {
-    let target = Number(document.getElementById('calc-target').value) || 0;
-    let siswa = Number(document.getElementById('calc-siswa').value) || (siswaData.length || 39);
-    let hasil = target / siswa;
-    let hasilBulat = Math.ceil(hasil / 1000) * 1000;
-    document.getElementById('calc-hasil').innerText = `Rp ${Math.round(hasil).toLocaleString('id-ID')}`;
-    document.getElementById('calc-hasil-bulat').innerText = `Rp ${hasilBulat.toLocaleString('id-ID')}`;
+    try {
+        let target = document.getElementById('calc-target') ? Number(document.getElementById('calc-target').value) || 0 : 0;
+        let siswa = document.getElementById('calc-siswa') ? Number(document.getElementById('calc-siswa').value) || (siswaData.length || 39) : 39;
+        let hasil = target / siswa;
+        let hasilBulat = Math.ceil(hasil / 1000) * 1000;
+        if(document.getElementById('calc-hasil')) document.getElementById('calc-hasil').innerText = `Rp ${Math.round(hasil).toLocaleString('id-ID')}`;
+        if(document.getElementById('calc-hasil-bulat')) document.getElementById('calc-hasil-bulat').innerText = `Rp ${hasilBulat.toLocaleString('id-ID')}`;
+    } catch(e) {}
 }
 
 function startGiveawaySpin() {
@@ -492,23 +513,20 @@ function startGiveawaySpin() {
     let btnSpin = document.getElementById('btn-spin');
 
     if(lunasMingguIniSiswa.length === 0) { alert('Belum ada siswa yang lunas uang kas minggu ini (minimal Rp 3.000) untuk di-spin!'); return; }
-
-    btnSpin.disabled = true;
-    btnSpin.classList.add('opacity-50', 'cursor-not-allowed');
-    statusBox.innerText = '🎲 Mengocok undian untuk siswa teladan minggu ini...';
+    if(btnSpin) { btnSpin.disabled = true; btnSpin.classList.add('opacity-50', 'cursor-not-allowed'); }
+    if(statusBox) statusBox.innerText = '🎲 Mengocok undian untuk siswa teladan minggu ini...';
 
     let counter = 0;
     let spinInterval = setInterval(() => {
         let randomIndex = Math.floor(Math.random() * lunasMingguIniSiswa.length);
-        winnerBox.innerText = lunasMingguIniSiswa[randomIndex].nama;
+        if(winnerBox) winnerBox.innerText = lunasMingguIniSiswa[randomIndex].nama;
         counter++;
         if(counter > 15) {
             clearInterval(spinInterval);
             let finalWinner = lunasMingguIniSiswa[Math.floor(Math.random() * lunasMingguIniSiswa.length)];
-            winnerBox.innerText = `🏆 SELAMAT! ${finalWinner.nama} 🎉`;
-            statusBox.innerText = 'Pemenang Giveaway Minggu Ini Terpilih!';
-            btnSpin.disabled = false;
-            btnSpin.classList.remove('opacity-50', 'cursor-not-allowed');
+            if(winnerBox) winnerBox.innerText = `🏆 SELAMAT! ${finalWinner.nama} 🎉`;
+            if(statusBox) statusBox.innerText = 'Pemenang Giveaway Minggu Ini Terpilih!';
+            if(btnSpin) { btnSpin.disabled = false; btnSpin.classList.remove('opacity-50', 'cursor-not-allowed'); }
         }
     }, 100);
 }
@@ -764,33 +782,33 @@ function loadDataAdminPengeluaran() {
     tbody.innerHTML = html;
 }
 
-async function simpanDataSiswa(e) {
-    e.preventDefault();
+function simpanDataSiswa(e) {
+    if(e) e.preventDefault();
     let absen = Number(document.getElementById('siswa-absen').value);
     let nama = document.getElementById('siswa-nama').value.trim();
     let payload = { id: 'sis_' + Date.now(), absen, nama };
-    let { error } = await _supabaseClient.from('siswa').insert([payload]);
-    if (error) { alert("Gagal menyimpan ke Supabase: " + error.message); return; }
+    
     siswaData.push(payload);
-    document.getElementById('siswa-absen').value = '';
-    document.getElementById('siswa-nama').value = '';
+    saveToLocalStorage();
+
+    if(document.getElementById('siswa-absen')) document.getElementById('siswa-absen').value = '';
+    if(document.getElementById('siswa-nama')) document.getElementById('siswa-nama').value = '';
     populateSiswaDropdown();
     renderSiswaAdminList();
     alert('Siswa berhasil ditambahkan!');
 }
 
-async function hapusSiswa(id) {
+function hapusSiswa(id) {
     if(confirm('Hapus siswa ini dari daftar?')) {
-        let { error } = await _supabaseClient.from('siswa').delete().eq('id', id);
-        if (error) { alert("Gagal menghapus: " + error.message); return; }
         siswaData = siswaData.filter(s => String(s.id) !== String(id));
+        saveToLocalStorage();
         populateSiswaDropdown();
         renderSiswaAdminList();
     }
 }
 
-async function simpanDataPemasukan(e) {
-    e.preventDefault();
+function simpanDataPemasukan(e) {
+    if(e) e.preventDefault();
     const selectSiswa = document.getElementById('input-siswa-select').value;
     if(!selectSiswa) { alert('Silakan pilih siswa terlebih dahulu!'); return; }
 
@@ -798,7 +816,7 @@ async function simpanDataPemasukan(e) {
     const absen = siswaObj.absen;
     const nama = siswaObj.nama;
     const tipe = document.getElementById('input-tipe').value;
-    const namaIuran = document.getElementById('input-nama-iuran').value;
+    const namaIuran = document.getElementById('input-nama-iuran') ? document.getElementById('input-nama-iuran').value : '';
     const nominal = Number(document.getElementById('input-nominal').value);
     const metode = document.getElementById('input-metode').value;
     const tanggal = document.getElementById('input-tanggal').value;
@@ -806,16 +824,14 @@ async function simpanDataPemasukan(e) {
 
     if (tipe === 'Kas') {
         let payload = { id: Date.now().toString(), absen, nama, nominal, metode, tanggal, minggu: mingguTransaksi };
-        let { error } = await _supabaseClient.from('kas').insert([payload]);
-        if (error) { alert("Gagal simpan kas: " + error.message); return; }
         kasData.push(payload);
+        saveToLocalStorage();
         alert('Data uang kas berhasil disimpan.');
         loadDataAdminKas();
     } else {
         let payload = { id: 'iur_' + Date.now(), absen, nama, namaIuran, nominal, metode, tanggal };
-        let { error } = await _supabaseClient.from('iuran').insert([payload]);
-        if (error) { alert("Gagal simpan iuran: " + error.message); return; }
         iuranData.push(payload);
+        saveToLocalStorage();
         alert('Data iuran khusus berhasil disimpan.');
         loadDataAdminIuran();
     }
@@ -825,64 +841,68 @@ async function simpanDataPemasukan(e) {
     checkAndProcessAutoMonthlyArchive();
 }
 
-async function simpanDataPengeluaran(e) {
-    e.preventDefault();
+function simpanDataPengeluaran(e) {
+    if(e) e.preventDefault();
     const keterangan = document.getElementById('exp-keterangan').value;
     const nominal = Number(document.getElementById('exp-nominal').value);
     const tanggal = document.getElementById('exp-tanggal').value;
     let payload = { id: 'e_' + Date.now(), keterangan, nominal, tanggal };
-    let { error } = await _supabaseClient.from('pengeluaran').insert([payload]);
-    if (error) { alert("Gagal simpan pengeluaran: " + error.message); return; }
+    
     pengeluaranData.push(payload);
-    document.getElementById('form-pengeluaran').reset();
+    saveToLocalStorage();
+
+    if(document.getElementById('form-pengeluaran')) document.getElementById('form-pengeluaran').reset();
     alert('Catatan pengeluaran berhasil disimpan.');
     loadDataAdminPengeluaran();
     loadAdminStatistics();
     checkAndProcessAutoMonthlyArchive();
 }
 
-async function hapusDataKas(id) {
+function hapusDataKas(id) {
     if(confirm('Hapus transaksi kas ini?')) {
-        await _supabaseClient.from('kas').delete().eq('id', id);
         kasData = kasData.filter(item => String(item.id) !== String(id));
+        saveToLocalStorage();
         loadDataAdminKas();
         loadAdminStatistics();
     }
 }
 
-async function hapusDataIuran(id) {
+function hapusDataIuran(id) {
     if(confirm('Hapus transaksi iuran khusus ini?')) {
-        await _supabaseClient.from('iuran').delete().eq('id', id);
         iuranData = iuranData.filter(item => String(item.id) !== String(id));
+        saveToLocalStorage();
         loadDataAdminIuran();
         loadAdminStatistics();
     }
 }
 
-async function hapusPengeluaran(id) {
+function hapusPengeluaran(id) {
     if(confirm('Hapus catatan pengeluaran ini?')) {
-        await _supabaseClient.from('pengeluaran').delete().eq('id', id);
         pengeluaranData = pengeluaranData.filter(item => String(item.id) !== String(id));
+        saveToLocalStorage();
         loadDataAdminPengeluaran();
         loadAdminStatistics();
     }
 }
 
 function resetForm() {
-    document.getElementById('form-admin').reset();
-    document.getElementById('edit-id').value = '';
+    if(document.getElementById('form-admin')) document.getElementById('form-admin').reset();
+    if(document.getElementById('edit-id')) document.getElementById('edit-id').value = '';
     toggleNamaIuran();
 }
 
 function resetFormSiswa() {
-    document.getElementById('siswa-absen').value = '';
-    document.getElementById('siswa-nama').value = '';
+    if(document.getElementById('siswa-absen')) document.getElementById('siswa-absen').value = '';
+    if(document.getElementById('siswa-nama')) document.getElementById('siswa-nama').value = '';
 }
 
 window.onload = () => {
-    initCalendarDefault();
-    updateWIBClock();
-    setInterval(updateWIBClock, 1000);
-    hitungPatungan();
-    initAppFromSupabase();
+    try {
+        updateWIBClock();
+        setInterval(updateWIBClock, 1000);
+        hitungPatungan();
+        initAppFromLocal();
+    } catch (e) {
+        console.error("Error onload:", e);
+    }
 };
